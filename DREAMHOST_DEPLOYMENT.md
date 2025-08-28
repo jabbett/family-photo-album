@@ -14,15 +14,24 @@ This guide walks you through deploying the Family Photo Album app on Dreamhost s
 Dreamhost shared hosting expects your public files in the domain's root directory (e.g., `yourdomain.com/`). Laravel's structure needs to be adapted:
 
 ```
-yourdomain.com/          # Public Laravel files (public/ contents)
-├── index.php            # Modified to point to ../laravel/
+yourdomain.com/                    # Public Laravel files (public/ contents)
+├── index.php                      # Modified to point to ../family-photo-album/
 ├── .htaccess
-└── assets/              # Built CSS/JS
+└── assets/                        # Built CSS/JS
 
-laravel/                 # Laravel application (non-public)
+family-photo-album/                # Laravel application (non-public)
 ├── app/
 ├── config/
 ├── routes/
+└── ...
+
+# For multiple Laravel apps:
+anotherdomain.com/                 # Another domain's public files
+├── index.php                      # Points to ../my-other-laravel-app/
+
+my-other-laravel-app/              # Second Laravel app
+├── app/
+├── config/
 └── ...
 ```
 
@@ -50,30 +59,36 @@ npm ci
 npm run build
 ```
 
-### Step 2: Upload Files
+### Step 2: Deploy Code
 
-**Option A: Via SSH (Recommended)**
+**Option A: Git Deployment (Recommended for Active Development)**
+```bash
+# SSH into your Dreamhost account
+ssh yourusername@yoursite.com
+
+# Clone directly from GitHub
+git clone https://github.com/jabbett/family-photo-album.git
+
+# Install dependencies
+cd family-photo-album
+composer install --no-dev --optimize-autoloader
+
+# Install Node.js if not available (Dreamhost shared hosting may not have it)
+# You'll need to build assets locally and commit them, or use GitHub Actions
+```
+
+**Option B: Upload Pre-built Files**
 ```bash
 # Upload entire project to a temporary directory
 scp -r family-photo-album yourusername@yoursite.com:~/
 ```
 
-**Option B: Via FTP/SFTP**
-- Upload all files except `.env`, `node_modules/`, `storage/app/public/photos/`
-- Use FileZilla or similar FTP client
-
 ### Step 3: Set Up Directory Structure
 
 ```bash
-# SSH into your Dreamhost account
-ssh yourusername@yoursite.com
-
-# Create Laravel directory outside web root
-mv family-photo-album laravel
-
 # Move public files to domain root
-cp -r laravel/public/* yourdomain.com/
-cp laravel/public/.htaccess yourdomain.com/
+cp -r family-photo-album/public/* yourdomain.com/
+cp family-photo-album/public/.htaccess yourdomain.com/
 
 # Update index.php to point to correct location
 ```
@@ -91,9 +106,9 @@ use Illuminate\Http\Request;
 define('LARAVEL_START', microtime(true));
 
 // Update these paths for Dreamhost structure
-require __DIR__.'/../laravel/vendor/autoload.php';
+require __DIR__.'/../family-photo-album/vendor/autoload.php';
 
-$app = require_once __DIR__.'/../laravel/bootstrap/app.php';
+$app = require_once __DIR__.'/../family-photo-album/bootstrap/app.php';
 
 $kernel = $app->make(Kernel::class);
 
@@ -108,7 +123,7 @@ $kernel->terminate($request, $response);
 
 ```bash
 # Create and configure .env file
-cd laravel
+cd family-photo-album
 cp .env.example .env
 php artisan key:generate
 ```
@@ -242,7 +257,7 @@ du -sh storage/app/public/photos/
 ### Common Issues
 
 **Issue**: 500 Internal Server Error
-- Check `laravel/storage/logs/laravel.log`
+- Check `family-photo-album/storage/logs/laravel.log`
 - Verify file permissions (755 for directories, 644 for files)
 - Ensure `.env` file exists and has correct database credentials
 
@@ -252,7 +267,7 @@ du -sh storage/app/public/photos/
 - Run `npm run build` locally and re-upload `build/` directory
 
 **Issue**: Storage link not working
-- Manually create symlink: `ln -sf ../laravel/storage/app/public yourdomain.com/storage`
+- Manually create symlink: `ln -sf ../family-photo-album/storage/app/public yourdomain.com/storage`
 - Verify permissions on storage directories
 
 **Issue**: Database connection errors
@@ -267,16 +282,65 @@ du -sh storage/app/public/photos/
 3. **Image Optimization**: Compress uploaded images before storage
 4. **Database Indexing**: Monitor slow queries and add indexes as needed
 
+## Git-Based Asset Building Strategy
+
+Since Dreamhost shared hosting typically doesn't have Node.js, you have two options for handling built assets:
+
+### Option 1: Commit Built Assets (Simplest)
+```bash
+# In your local development
+npm run build
+git add public/build/
+git commit -m "Update built assets"
+git push origin main
+
+# On server
+git pull origin main
+```
+
+### Option 2: GitHub Actions (More Professional)
+Create `.github/workflows/build-assets.yml`:
+
+```yaml
+name: Build and Deploy Assets
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run build
+      - name: Commit built assets
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add public/build/
+          git diff --staged --quiet || git commit -m "Auto-build assets"
+          git push
+```
+
 ## Updates and Backups
 
-### Updating the Application
+### Git-Based Updates (For Active Development)
 
 ```bash
-# Backup database first
-mysqldump -h mysql.yoursite.com -u username -p database_name > backup.sql
+# SSH into Dreamhost
+ssh yourusername@yoursite.com
+cd family-photo-album
 
-# Upload new code
-# Update dependencies if needed
+# Backup database first
+mysqldump -h mysql.yoursite.com -u username -p database_name > ../backups/db-$(date +%Y%m%d-%H%M%S).sql
+
+# Pull latest changes
+git pull origin main
+
+# Update dependencies if composer.json changed
 composer install --no-dev --optimize-autoloader
 
 # Clear and rebuild caches
@@ -286,6 +350,68 @@ php artisan view:clear && php artisan view:cache
 
 # Run any new migrations
 php artisan migrate --force
+
+# Copy any new public assets to web root
+cp -r public/* ../yourdomain.com/
+```
+
+### Quick Update Script
+
+Create `~/update-photo-album.sh`:
+
+```bash
+#!/bin/bash
+set -e
+
+echo "🔄 Starting Family Photo Album update..."
+
+# Navigate to app directory
+cd ~/family-photo-album
+
+# Backup database
+echo "📦 Backing up database..."
+mkdir -p ~/backups
+mysqldump -h mysql.yoursite.com -u $DB_USER -p$DB_PASS $DB_NAME > ~/backups/db-$(date +%Y%m%d-%H%M%S).sql
+
+# Pull latest code
+echo "⬇️  Pulling latest code..."
+git pull origin main
+
+# Update dependencies
+echo "📚 Updating dependencies..."
+composer install --no-dev --optimize-autoloader
+
+# Clear caches
+echo "🧹 Clearing caches..."
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
+# Rebuild caches
+echo "🏗️  Rebuilding caches..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# Run migrations
+echo "🗃️  Running migrations..."
+php artisan migrate --force
+
+# Copy public assets
+echo "📁 Copying public assets..."
+cp -r public/* ~/yourdomain.com/
+
+echo "✅ Update complete!"
+```
+
+Make it executable:
+```bash
+chmod +x ~/update-photo-album.sh
+```
+
+Then updates become:
+```bash
+~/update-photo-album.sh
 ```
 
 ### Backup Strategy
