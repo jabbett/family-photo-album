@@ -5,7 +5,11 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/framework/views/*.php
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
 /vendor
+.DS_Store
 .env
 .env.backup
 .env.production
@@ -29,3 +33,6 @@ yarn-error.log
 
 # Logs
 /storage/logs/*.log
+
+# Deployment configuration
+.deploy-config

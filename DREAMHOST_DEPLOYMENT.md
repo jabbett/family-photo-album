@@ -50,42 +50,27 @@ Ensure your domain is using PHP 8.2 or higher:
 
 ## Deployment Steps
 
-### Step 1: Prepare Local Build
+### Step 1: Prepare Complete Local Build
 
 ```bash
-# In your local development directory
+# In your family-photo-album directory
 composer install --no-dev --optimize-autoloader
-npm ci
 npm run build
 ```
 
-### Step 2: Deploy Code
+### Step 2: Upload Complete Project
 
-**Option A: Git Deployment (Recommended for Active Development)**
 ```bash
-# SSH into your Dreamhost account
-ssh yourusername@yoursite.com
-
-# Clone directly from GitHub
-git clone https://github.com/jabbett/family-photo-album.git
-
-# Install dependencies
-cd family-photo-album
-composer install --no-dev --optimize-autoloader
-
-# Install Node.js if not available (Dreamhost shared hosting may not have it)
-# You'll need to build assets locally and commit them, or use GitHub Actions
-```
-
-**Option B: Upload Pre-built Files**
-```bash
-# Upload entire project to a temporary directory
-scp -r family-photo-album yourusername@yoursite.com:~/
+# From within your family-photo-album directory
+rsync -avz --exclude-from=.gitignore --exclude='.git/' ./ yourusername@yoursite.com:~/family-photo-album/
 ```
 
 ### Step 3: Set Up Directory Structure
 
 ```bash
+# SSH into your server
+ssh yourusername@yoursite.com
+
 # Move public files to domain root
 cp -r family-photo-album/public/* yourdomain.com/
 cp family-photo-album/public/.htaccess yourdomain.com/
@@ -95,28 +80,29 @@ cp family-photo-album/public/.htaccess yourdomain.com/
 
 ### Step 4: Modify index.php
 
-Edit `yourdomain.com/index.php`:
+Edit `yourdomain.com/index.php` to update the paths for Dreamhost structure:
 
 ```php
 <?php
 
-use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
-// Update these paths for Dreamhost structure
+// Determine if the application is in maintenance mode...
+if (file_exists($maintenance = __DIR__.'/../family-photo-album/storage/framework/maintenance.php')) {
+    require $maintenance;
+}
+
+// Register the Composer autoloader...
 require __DIR__.'/../family-photo-album/vendor/autoload.php';
 
+// Bootstrap Laravel and handle the request...
+/** @var Application $app */
 $app = require_once __DIR__.'/../family-photo-album/bootstrap/app.php';
 
-$kernel = $app->make(Kernel::class);
-
-$response = $kernel->handle(
-    $request = Request::capture()
-)->send();
-
-$kernel->terminate($request, $response);
+$app->handleRequest(Request::capture());
 ```
 
 ### Step 5: Environment Configuration
@@ -188,7 +174,7 @@ php artisan tinker
 >>> $user->email = 'your-admin@email.com';
 >>> $user->password = bcrypt('your-secure-password');
 >>> $user->email_verified_at = now();
->>> $user->admin = true;
+>>> $user->is_admin = true;
 >>> $user->save();
 >>> exit
 ```
@@ -282,82 +268,53 @@ du -sh storage/app/public/photos/
 3. **Image Optimization**: Compress uploaded images before storage
 4. **Database Indexing**: Monitor slow queries and add indexes as needed
 
-## Git-Based Asset Building Strategy
+## Your Deployment Workflow
 
-Since Dreamhost shared hosting typically doesn't have Node.js, you have two options for handling built assets:
+Since your shared server lacks Composer and modern Node.js, we'll build everything locally and upload the complete project.
 
-### Option 1: Commit Built Assets (Simplest)
-```bash
-# In your local development
-npm run build
-git add public/build/
-git commit -m "Update built assets"
-git push origin main
-
-# On server
-git pull origin main
-```
-
-### Option 2: GitHub Actions (More Professional)
-Create `.github/workflows/build-assets.yml`:
-
-```yaml
-name: Build and Deploy Assets
-on:
-  push:
-    branches: [main]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm run build
-      - name: Commit built assets
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add public/build/
-          git diff --staged --quiet || git commit -m "Auto-build assets"
-          git push
-```
-
-## Updates and Backups
-
-### Git-Based Updates (For Active Development)
+### Local Development & Deployment
 
 ```bash
-# SSH into Dreamhost
-ssh yourusername@yoursite.com
-cd family-photo-album
+# Make your changes locally
+# Test with: composer run dev
 
-# Backup database first
-mysqldump -h mysql.yoursite.com -u username -p database_name > ../backups/db-$(date +%Y%m%d-%H%M%S).sql
-
-# Pull latest changes
-git pull origin main
-
-# Update dependencies if composer.json changed
+# Build complete project for production
 composer install --no-dev --optimize-autoloader
+npm run build
 
-# Clear and rebuild caches
-php artisan config:clear && php artisan config:cache
-php artisan route:clear && php artisan route:cache
-php artisan view:clear && php artisan view:cache
+# Upload project excluding development files (from within family-photo-album directory)
+rsync -avz --exclude-from=.gitignore --exclude='.git/' ./ yourusername@yoursite.com:~/temp-upload/
 
-# Run any new migrations
-php artisan migrate --force
+# SSH in and replace current version
+ssh yourusername@yoursite.com
+rm -rf family-photo-album-backup
+mv family-photo-album family-photo-album-backup  # Backup current version
+mv temp-upload family-photo-album                # Deploy new version
 
-# Copy any new public assets to web root
-cp -r public/* ../yourdomain.com/
+# Copy public files to web root
+cp -r family-photo-album/public/* yourdomain.com/
 ```
 
-### Quick Update Script
+### Why This Approach
 
-Create `~/update-photo-album.sh`:
+- ✅ **Simple**: No server dependencies to manage
+- ✅ **Complete**: Everything built and tested locally first
+- ✅ **Safe**: Keeps backup of previous version
+- ✅ **Fast**: No build time on server
+
+## Updates
+
+### Server Setup: Upload Update Script
+
+First, upload the server-side update script:
+
+```bash
+# Upload the server update script
+scp server-scripts/update-photo-album.sh yourusername@yoursite.com:~/update-photo-album.sh
+ssh yourusername@yoursite.com chmod +x ~/update-photo-album.sh
+```
+
+### The Update Script
 
 ```bash
 #!/bin/bash
@@ -365,39 +322,26 @@ set -e
 
 echo "🔄 Starting Family Photo Album update..."
 
-# Navigate to app directory
-cd ~/family-photo-album
-
 # Backup database
 echo "📦 Backing up database..."
 mkdir -p ~/backups
 mysqldump -h mysql.yoursite.com -u $DB_USER -p$DB_PASS $DB_NAME > ~/backups/db-$(date +%Y%m%d-%H%M%S).sql
 
-# Pull latest code
-echo "⬇️  Pulling latest code..."
-git pull origin main
+# Backup current version
+echo "💾 Backing up current version..."
+rm -rf family-photo-album-backup
+mv family-photo-album family-photo-album-backup
 
-# Update dependencies
-echo "📚 Updating dependencies..."
-composer install --no-dev --optimize-autoloader
-
-# Clear caches
-echo "🧹 Clearing caches..."
-php artisan config:clear
-php artisan route:clear
-php artisan view:clear
-
-# Rebuild caches
-echo "🏗️  Rebuilding caches..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+# Move new version into place
+echo "📁 Installing new version..."
+mv temp-upload family-photo-album
 
 # Run migrations
 echo "🗃️  Running migrations..."
+cd family-photo-album
 php artisan migrate --force
 
-# Copy public assets
+# Copy public assets to web root
 echo "📁 Copying public assets..."
 cp -r public/* ~/yourdomain.com/
 
@@ -409,10 +353,18 @@ Make it executable:
 chmod +x ~/update-photo-album.sh
 ```
 
-Then updates become:
+### Your Update Workflow
+
 ```bash
+# Local: Build and upload new version (from within family-photo-album directory)
+./deploy.sh
+
+# Server: Deploy new version
+ssh yourusername@yoursite.com
 ~/update-photo-album.sh
 ```
+
+The `deploy.sh` script handles building dependencies, assets, and uploading with the correct exclusions for Dreamhost deployment.
 
 ### Backup Strategy
 
