@@ -256,10 +256,113 @@ class PhotoUploadController extends Controller
     }
 
     /**
-     * Re-encode the uploaded image to strip metadata and store as the canonical original.
+     * Sanitize image by selectively removing sensitive EXIF data while preserving orientation and technical data.
      * Returns [relativePath, width, height].
      */
     protected function sanitizeAndStoreOriginal(string $uploadedTempPath): array
+    {
+        // Try Imagick approach first (preferred - no quality loss)
+        if (class_exists('Imagick')) {
+            try {
+                return $this->sanitizeWithImagick($uploadedTempPath);
+            } catch (\Throwable $e) {
+                logger()->warning('Imagick sanitization failed, falling back to GD', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Fallback to GD approach
+        return $this->sanitizeWithGD($uploadedTempPath);
+    }
+
+    /**
+     * Sanitize image using Imagick - preserves quality by avoiding re-encoding
+     */
+    protected function sanitizeWithImagick(string $uploadedTempPath): array
+    {
+        $imagick = new \Imagick($uploadedTempPath);
+        
+        // Get dimensions before any modifications
+        $width = $imagick->getImageWidth();
+        $height = $imagick->getImageHeight();
+        
+        // Get original format
+        $format = strtolower($imagick->getImageFormat());
+        $extension = match ($format) {
+            'jpeg' => 'jpg',
+            'png' => 'png',
+            'gif' => 'gif',
+            default => 'jpg',
+        };
+
+        // Preserve orientation and useful technical data before stripping
+        $orientation = null;
+        $cameraData = [];
+        
+        try {
+            // Save orientation
+            $orientation = $imagick->getImageProperty('exif:Orientation');
+            
+            // Save useful technical data (non-privacy sensitive)
+            $preserveFields = [
+                'exif:Make',           // Camera manufacturer
+                'exif:Model',          // Camera model  
+                'exif:LensModel',      // Lens model
+                'exif:FocalLength',    // Focal length
+                'exif:FNumber',        // F-stop
+                'exif:ExposureTime',   // Shutter speed
+                'exif:ISOSpeedRatings', // ISO
+                'exif:Flash',          // Flash setting
+                'exif:WhiteBalance',   // White balance
+            ];
+            
+            foreach ($preserveFields as $field) {
+                try {
+                    $value = $imagick->getImageProperty($field);
+                    if ($value !== '') {
+                        $cameraData[$field] = $value;
+                    }
+                } catch (\Exception $e) {
+                    // Ignore missing fields
+                }
+            }
+        } catch (\Exception $e) {
+            // Ignore EXIF read errors
+        }
+
+        // Strip all EXIF/metadata
+        $imagick->stripImage();
+
+        // Restore orientation and preserved technical data
+        if ($orientation) {
+            $imagick->setImageProperty('exif:Orientation', $orientation);
+        }
+        
+        foreach ($cameraData as $field => $value) {
+            $imagick->setImageProperty($field, $value);
+        }
+
+        // Save to destination
+        $relativePath = 'photos/originals/' . Str::uuid()->toString() . '.' . $extension;
+        Storage::disk('public')->makeDirectory('photos/originals');
+        $dest = Storage::disk('public')->path($relativePath);
+        
+        // Set quality for JPEG
+        if ($extension === 'jpg') {
+            $imagick->setImageCompressionQuality(90);
+        }
+        
+        $imagick->writeImage($dest);
+        $imagick->destroy();
+
+        return [$relativePath, $width, $height];
+    }
+
+    /**
+     * Fallback sanitization using GD - re-encodes with orientation correction
+     */
+    protected function sanitizeWithGD(string $uploadedTempPath): array
     {
         [$width, $height, $type] = getimagesize($uploadedTempPath);
         $image = $this->createImageResource($uploadedTempPath, $type);
@@ -267,10 +370,14 @@ class PhotoUploadController extends Controller
             throw new \RuntimeException('Unsupported image type');
         }
 
+        // Apply EXIF orientation correction before stripping metadata
+        $image = $this->correctImageOrientation($image, $uploadedTempPath);
+        [$width, $height] = [imagesx($image), imagesy($image)];
+
         // Determine destination extension and encoder
         $extension = match ($type) {
             IMAGETYPE_JPEG => 'jpg',
-            IMAGETYPE_PNG => 'png',
+            IMAGETYPE_PNG => 'png', 
             IMAGETYPE_GIF => 'gif',
             default => 'jpg',
         };
@@ -285,7 +392,6 @@ class PhotoUploadController extends Controller
                 imagejpeg($image, $dest, 90);
                 break;
             case 'png':
-                // 0 (no compression) - 9; use 6 as a balance
                 imagepng($image, $dest, 6);
                 break;
             case 'gif':
@@ -295,11 +401,7 @@ class PhotoUploadController extends Controller
 
         imagedestroy($image);
 
-        // Confirm dimensions from resource
-        $finalWidth = imagesx(imagecreatefromstring(file_get_contents($dest)));
-        $finalHeight = imagesy(imagecreatefromstring(file_get_contents($dest)));
-
-        return [$relativePath, $finalWidth, $finalHeight];
+        return [$relativePath, $width, $height];
     }
 
     protected function translateUploadErrorCode(?int $code, string $limits): string
@@ -315,6 +417,7 @@ class PhotoUploadController extends Controller
             default => "The photo failed to upload. Server limits: {$limits}. Try a smaller photo or raise limits.",
         };
     }
+
 }
 
 

@@ -67,6 +67,7 @@ rsync -avz \
     --exclude='storage/framework/cache/data/*' \
     --exclude='storage/framework/sessions/*' \
     --exclude='storage/logs/*.log' \
+    --exclude='public/storage' \
     --exclude='tests/' \
     --exclude='.DS_Store' \
     ./ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"

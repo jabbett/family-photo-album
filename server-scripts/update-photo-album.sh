@@ -165,6 +165,12 @@ if [ -f "server-files/index.php" ]; then
     echo -e "${GREEN}✅ Server-specific index.php installed${NC}"
 fi
 
+# Create correct storage symlink for Dreamhost structure
+echo -e "${BLUE}🔗 Creating storage symlink...${NC}"
+rm -f "$DOMAIN_DIR/storage"
+ln -sf "$HOME/family-photo-album/storage/app/public" "$DOMAIN_DIR/storage"
+echo -e "${GREEN}✅ Storage symlink created${NC}"
+
 echo -e "${GREEN}✅ Public assets updated in $DOMAIN_DIR${NC}"
 
 echo ""
