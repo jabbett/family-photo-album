@@ -20,6 +20,20 @@ class PhotoUploadController extends Controller
 
     public function handleUpload(Request $request): RedirectResponse
     {
+        logger()->info('Upload attempt started', [
+            'user_id' => Auth::id(),
+            'request_size' => $request->server('CONTENT_LENGTH'),
+            'has_file' => $request->hasFile('photo'),
+            'post_data_empty' => empty($_POST),
+            'files_data_empty' => empty($_FILES),
+            'files_debug' => $_FILES,
+            'php_limits' => [
+                'upload_max_filesize' => ini_get('upload_max_filesize'),
+                'post_max_size' => ini_get('post_max_size'),
+                'memory_limit' => ini_get('memory_limit'),
+            ],
+        ]);
+
         // Proactive check: if PHP rejected the file (e.g., size > upload_max_filesize),
         // validation will show a generic message. Provide a clearer one with limits.
         if ($request->hasFile('photo')) {
@@ -281,11 +295,23 @@ class PhotoUploadController extends Controller
      */
     protected function sanitizeWithImagick(string $uploadedTempPath): array
     {
+        logger()->info('Starting Imagick sanitization', [
+            'file_path' => $uploadedTempPath,
+            'file_exists' => file_exists($uploadedTempPath),
+            'file_size' => file_exists($uploadedTempPath) ? filesize($uploadedTempPath) : null,
+        ]);
+
         $imagick = new \Imagick($uploadedTempPath);
         
         // Get dimensions before any modifications
         $width = $imagick->getImageWidth();
         $height = $imagick->getImageHeight();
+        
+        logger()->info('Image loaded successfully', [
+            'width' => $width,
+            'height' => $height,
+            'format' => $imagick->getImageFormat(),
+        ]);
         
         // Get original format
         $format = strtolower($imagick->getImageFormat());

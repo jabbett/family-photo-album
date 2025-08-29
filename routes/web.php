@@ -6,6 +6,16 @@ use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\PhotoController;
 use App\Models\Photo;
 
+Route::get('/debug-php', function() {
+    return response()->json([
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size'),
+        'max_file_uploads' => ini_get('max_file_uploads'),
+        'memory_limit' => ini_get('memory_limit'),
+        'loaded_ini' => php_ini_loaded_file()
+    ]);
+});
+
 Route::get('/', function () {
     $perPage = 20;
     $paginator = Photo::where('is_completed', true)
