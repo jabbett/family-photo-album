@@ -85,8 +85,20 @@ fi
 if [ -n "$DB_HOST" ] && [ -n "$DB_USERNAME" ] && [ -n "$DB_PASSWORD" ] && [ -n "$DB_DATABASE" ]; then
     echo -e "${YELLOW}📦 Backing up database...${NC}"
     mkdir -p ~/backups
-    mysqldump -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" > ~/backups/db-$(date +%Y%m%d-%H%M%S).sql
-    echo -e "${GREEN}✅ Database backed up${NC}"
+    
+    # Use safer mysqldump options for shared hosting
+    if mysqldump -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" \
+        --single-transaction \
+        --routines \
+        --triggers \
+        --no-tablespaces \
+        --skip-lock-tables \
+        "$DB_DATABASE" > ~/backups/db-$(date +%Y%m%d-%H%M%S).sql 2>/dev/null; then
+        echo -e "${GREEN}✅ Database backed up${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Database backup failed (insufficient privileges), continuing deployment...${NC}"
+        echo -e "${BLUE}💡 Consider manually backing up your database before deployments${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️  Skipping database backup (no existing .env found)${NC}"
 fi

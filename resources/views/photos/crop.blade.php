@@ -2,7 +2,7 @@
     <x-simple-header :back-url="route('home')" title="Choose Thumbnail Crop">
         <div class="mt-6 rounded-lg bg-white border border-gray-200 p-4">
             <div class="w-full max-w-full overflow-hidden rounded">
-                <img id="crop-image" src="{{ $photo->original_url }}" alt="Original" class="max-w-full block" />
+                <img id="crop-image" src="{{ $photo->original_url }}" alt="Original" class="max-w-full block" style="image-orientation: from-image;" />
             </div>
 
             <form id="crop-form" class="mt-4" method="POST" action="{{ route('photos.crop.handle', $photo) }}">
