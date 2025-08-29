@@ -90,8 +90,8 @@ class PhotoUploadController extends Controller
             }
         }
 
-        // Sanitize and store the original (re-encode without metadata)
-        [$originalPath, $width, $height] = $this->sanitizeAndStoreOriginal($file->getRealPath());
+        // Store the original (preserving all metadata for now)
+        [$originalPath, $width, $height] = $this->storeOriginal($file->getRealPath());
 
         $photo = Photo::create([
             'user_id' => Auth::id(),
@@ -166,269 +166,128 @@ class PhotoUploadController extends Controller
     protected function createSquareThumbnail(Photo $photo, string $anchor): void
     {
         $absolutePath = Storage::disk('public')->path($photo->original_path);
-        [$width, $height, $type] = getimagesize($absolutePath);
-
-        $image = $this->createImageResource($absolutePath, $type);
-        if (!$image) {
-            throw new \RuntimeException('Unsupported image type');
-        }
-
+        $imagick = new \Imagick($absolutePath);
+        
+        // Auto-orient the image based on EXIF data
+        $imagick->autoOrientImage();
+        
+        $width = $imagick->getImageWidth();
+        $height = $imagick->getImageHeight();
         $squareSize = min($width, $height);
 
         $x = (int) floor(($width - $squareSize) / 2);
         $y = (int) floor(($height - $squareSize) / 2);
 
         if ($width > $height) {
-            // Landscape: move horizontally for left/right, vertically for top/bottom stays centered vertically
+            // Landscape: move horizontally for left/right
             if ($anchor === 'left') {
                 $x = 0;
             } elseif ($anchor === 'right') {
                 $x = $width - $squareSize;
             }
         } elseif ($height > $width) {
-            // Portrait: move vertically for top/bottom, horizontally for left/right stays centered horizontally
+            // Portrait: move vertically for top/bottom
             if ($anchor === 'top') {
                 $y = 0;
             } elseif ($anchor === 'bottom') {
                 $y = $height - $squareSize;
             }
-        } else {
-            // Already square; keep center
         }
 
-        $src = imagecreatetruecolor($squareSize, $squareSize);
-        imagecopyresampled($src, $image, 0, 0, $x, $y, $squareSize, $squareSize, $squareSize, $squareSize);
-
-        $thumbSize = 800; // produce a reasonable display-size square
-        $thumb = imagecreatetruecolor($thumbSize, $thumbSize);
-        imagecopyresampled($thumb, $src, 0, 0, 0, 0, $thumbSize, $thumbSize, $squareSize, $squareSize);
+        // Crop to square
+        $imagick->cropImage($squareSize, $squareSize, $x, $y);
+        
+        // Resize to thumbnail size
+        $thumbSize = 800;
+        $imagick->resizeImage($thumbSize, $thumbSize, \Imagick::FILTER_LANCZOS, 1);
+        
+        // Set format and quality
+        $imagick->setImageFormat('jpeg');
+        $imagick->setImageCompressionQuality(85);
+        $imagick->stripImage(); // Remove EXIF from thumbnail
 
         $filename = 'photos/thumbnails/' . Str::uuid()->toString() . '.jpg';
-        // Ensure directory exists
         Storage::disk('public')->makeDirectory(dirname($filename));
         $thumbPath = Storage::disk('public')->path($filename);
-
-        imagejpeg($thumb, $thumbPath, 85);
-        imagedestroy($src);
-        imagedestroy($thumb);
-        imagedestroy($image);
+        
+        $imagick->writeImage($thumbPath);
+        $imagick->destroy();
 
         $photo->thumbnail_path = $filename;
         $photo->save();
     }
 
+
     protected function createSquareThumbnailWithCoords(Photo $photo, int $x, int $y, int $size): void
     {
         $absolutePath = Storage::disk('public')->path($photo->original_path);
-        [$width, $height, $type] = getimagesize($absolutePath);
-        $image = $this->createImageResource($absolutePath, $type);
-        if (!$image) {
-            throw new \RuntimeException('Unsupported image type');
-        }
+        $imagick = new \Imagick($absolutePath);
+        
+        // Auto-orient the image based on EXIF data
+        $imagick->autoOrientImage();
+        
+        $width = $imagick->getImageWidth();
+        $height = $imagick->getImageHeight();
 
         $size = max(1, $size);
         $x = max(0, min($x, $width - 1));
         $y = max(0, min($y, $height - 1));
         $size = min($size, $width - $x, $height - $y);
 
-        $src = imagecreatetruecolor($size, $size);
-        imagecopyresampled($src, $image, 0, 0, $x, $y, $size, $size, $size, $size);
-
+        // Crop to specified coordinates
+        $imagick->cropImage($size, $size, $x, $y);
+        
+        // Resize to thumbnail size
         $thumbSize = 800;
-        $thumb = imagecreatetruecolor($thumbSize, $thumbSize);
-        imagecopyresampled($thumb, $src, 0, 0, 0, 0, $thumbSize, $thumbSize, $size, $size);
+        $imagick->resizeImage($thumbSize, $thumbSize, \Imagick::FILTER_LANCZOS, 1);
+        
+        // Set format and quality
+        $imagick->setImageFormat('jpeg');
+        $imagick->setImageCompressionQuality(85);
+        $imagick->stripImage(); // Remove EXIF from thumbnail
 
         $filename = 'photos/thumbnails/' . Str::uuid()->toString() . '.jpg';
-        // Ensure directory exists
         Storage::disk('public')->makeDirectory(dirname($filename));
         $thumbPath = Storage::disk('public')->path($filename);
-        imagejpeg($thumb, $thumbPath, 85);
-
-        imagedestroy($src);
-        imagedestroy($thumb);
-        imagedestroy($image);
+        
+        $imagick->writeImage($thumbPath);
+        $imagick->destroy();
 
         $photo->thumbnail_path = $filename;
         $photo->save();
     }
 
-    protected function createImageResource(string $path, int $imageType)
-    {
-        switch ($imageType) {
-            case IMAGETYPE_JPEG:
-                return imagecreatefromjpeg($path);
-            case IMAGETYPE_PNG:
-                $img = imagecreatefrompng($path);
-                imagealphablending($img, true);
-                imagesavealpha($img, true);
-                return $img;
-            case IMAGETYPE_GIF:
-                return imagecreatefromgif($path);
-            default:
-                return null;
-        }
-    }
 
     /**
-     * Sanitize image by selectively removing sensitive EXIF data while preserving orientation and technical data.
+     * Store original image preserving all EXIF data.
      * Returns [relativePath, width, height].
      */
-    protected function sanitizeAndStoreOriginal(string $uploadedTempPath): array
+    protected function storeOriginal(string $uploadedTempPath): array
     {
-        // Try Imagick approach first (preferred - no quality loss)
-        if (class_exists('Imagick')) {
-            try {
-                return $this->sanitizeWithImagick($uploadedTempPath);
-            } catch (\Throwable $e) {
-                logger()->warning('Imagick sanitization failed, falling back to GD', [
-                    'error' => $e->getMessage()
-                ]);
-            }
-        }
-
-        // Fallback to GD approach
-        return $this->sanitizeWithGD($uploadedTempPath);
-    }
-
-    /**
-     * Sanitize image using Imagick - preserves quality by avoiding re-encoding
-     */
-    protected function sanitizeWithImagick(string $uploadedTempPath): array
-    {
-        logger()->info('Starting Imagick sanitization', [
-            'file_path' => $uploadedTempPath,
-            'file_exists' => file_exists($uploadedTempPath),
-            'file_size' => file_exists($uploadedTempPath) ? filesize($uploadedTempPath) : null,
-        ]);
-
-        $imagick = new \Imagick($uploadedTempPath);
-        
-        // Get dimensions before any modifications
-        $width = $imagick->getImageWidth();
-        $height = $imagick->getImageHeight();
-        
-        logger()->info('Image loaded successfully', [
-            'width' => $width,
-            'height' => $height,
-            'format' => $imagick->getImageFormat(),
-        ]);
-        
-        // Get original format
-        $format = strtolower($imagick->getImageFormat());
-        $extension = match ($format) {
-            'jpeg' => 'jpg',
-            'png' => 'png',
-            'gif' => 'gif',
-            default => 'jpg',
-        };
-
-        // Preserve orientation and useful technical data before stripping
-        $orientation = null;
-        $cameraData = [];
-        
-        try {
-            // Save orientation
-            $orientation = $imagick->getImageProperty('exif:Orientation');
-            
-            // Save useful technical data (non-privacy sensitive)
-            $preserveFields = [
-                'exif:Make',           // Camera manufacturer
-                'exif:Model',          // Camera model  
-                'exif:LensModel',      // Lens model
-                'exif:FocalLength',    // Focal length
-                'exif:FNumber',        // F-stop
-                'exif:ExposureTime',   // Shutter speed
-                'exif:ISOSpeedRatings', // ISO
-                'exif:Flash',          // Flash setting
-                'exif:WhiteBalance',   // White balance
-            ];
-            
-            foreach ($preserveFields as $field) {
-                try {
-                    $value = $imagick->getImageProperty($field);
-                    if ($value !== '') {
-                        $cameraData[$field] = $value;
-                    }
-                } catch (\Exception $e) {
-                    // Ignore missing fields
-                }
-            }
-        } catch (\Exception $e) {
-            // Ignore EXIF read errors
-        }
-
-        // Strip all EXIF/metadata
-        $imagick->stripImage();
-
-        // Restore orientation and preserved technical data
-        if ($orientation) {
-            $imagick->setImageProperty('exif:Orientation', $orientation);
-        }
-        
-        foreach ($cameraData as $field => $value) {
-            $imagick->setImageProperty($field, $value);
-        }
-
-        // Save to destination
-        $relativePath = 'photos/originals/' . Str::uuid()->toString() . '.' . $extension;
-        Storage::disk('public')->makeDirectory('photos/originals');
-        $dest = Storage::disk('public')->path($relativePath);
-        
-        // Set quality for JPEG
-        if ($extension === 'jpg') {
-            $imagick->setImageCompressionQuality(90);
-        }
-        
-        $imagick->writeImage($dest);
-        $imagick->destroy();
-
-        return [$relativePath, $width, $height];
-    }
-
-    /**
-     * Fallback sanitization using GD - re-encodes with orientation correction
-     */
-    protected function sanitizeWithGD(string $uploadedTempPath): array
-    {
+        // Get image info
         [$width, $height, $type] = getimagesize($uploadedTempPath);
-        $image = $this->createImageResource($uploadedTempPath, $type);
-        if (!$image) {
-            throw new \RuntimeException('Unsupported image type');
-        }
-
-        // Apply EXIF orientation correction before stripping metadata
-        $image = $this->correctImageOrientation($image, $uploadedTempPath);
-        [$width, $height] = [imagesx($image), imagesy($image)];
-
-        // Determine destination extension and encoder
+        
+        // Determine file extension
         $extension = match ($type) {
             IMAGETYPE_JPEG => 'jpg',
-            IMAGETYPE_PNG => 'png', 
+            IMAGETYPE_PNG => 'png',
             IMAGETYPE_GIF => 'gif',
             default => 'jpg',
         };
 
+        // Generate destination path
         $relativePath = 'photos/originals/' . Str::uuid()->toString() . '.' . $extension;
         Storage::disk('public')->makeDirectory('photos/originals');
         $dest = Storage::disk('public')->path($relativePath);
 
-        // Re-encode without carrying over any metadata
-        switch ($extension) {
-            case 'jpg':
-                imagejpeg($image, $dest, 90);
-                break;
-            case 'png':
-                imagepng($image, $dest, 6);
-                break;
-            case 'gif':
-                imagegif($image, $dest);
-                break;
+        // Simply copy the file preserving all metadata
+        if (!copy($uploadedTempPath, $dest)) {
+            throw new \RuntimeException('Failed to store uploaded file');
         }
-
-        imagedestroy($image);
 
         return [$relativePath, $width, $height];
     }
+
 
     protected function translateUploadErrorCode(?int $code, string $limits): string
     {
