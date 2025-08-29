@@ -103,6 +103,15 @@ fi
 echo -e "${YELLOW}📁 Installing new version...${NC}"
 mv temp-upload family-photo-album
 
+# Preserve .env file from backup if it exists
+if [ -f "family-photo-album-backup/.env" ]; then
+    echo -e "${BLUE}📝 Restoring .env file from backup...${NC}"
+    cp family-photo-album-backup/.env family-photo-album/.env
+    echo -e "${GREEN}✅ .env file restored${NC}"
+else
+    echo -e "${YELLOW}⚠️  No .env file found in backup${NC}"
+fi
+
 # Run migrations if we have a .env file
 echo -e "${YELLOW}🗃️  Running migrations...${NC}"
 cd family-photo-album
