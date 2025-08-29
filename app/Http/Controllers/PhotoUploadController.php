@@ -168,8 +168,8 @@ class PhotoUploadController extends Controller
         $absolutePath = Storage::disk('public')->path($photo->original_path);
         $imagick = new \Imagick($absolutePath);
         
-        // Auto-orient the image based on EXIF data
-        $imagick->autoOrientImage();
+        // Auto-orient the image based on EXIF data (compatible version)
+        $this->autoOrientImagick($imagick);
         
         $width = $imagick->getImageWidth();
         $height = $imagick->getImageHeight();
@@ -223,8 +223,8 @@ class PhotoUploadController extends Controller
         $absolutePath = Storage::disk('public')->path($photo->original_path);
         $imagick = new \Imagick($absolutePath);
         
-        // Auto-orient the image based on EXIF data
-        $imagick->autoOrientImage();
+        // Auto-orient the image based on EXIF data (compatible version)
+        $this->autoOrientImagick($imagick);
         
         $width = $imagick->getImageWidth();
         $height = $imagick->getImageHeight();
@@ -288,6 +288,57 @@ class PhotoUploadController extends Controller
         return [$relativePath, $width, $height];
     }
 
+    /**
+     * Auto-orient Imagick image based on EXIF orientation (compatible version)
+     */
+    protected function autoOrientImagick(\Imagick $imagick): void
+    {
+        // Check if the newer method exists first
+        if (method_exists($imagick, 'autoOrientImage')) {
+            $imagick->autoOrientImage();
+            return;
+        }
+
+        // Fallback: manual orientation handling
+        try {
+            $orientation = $imagick->getImageProperty('exif:Orientation');
+            
+            if (!$orientation || $orientation == 1) {
+                return; // No orientation or already correct
+            }
+
+            switch ($orientation) {
+                case 2:
+                    $imagick->flopImage();
+                    break;
+                case 3:
+                    $imagick->rotateImage('transparent', 180);
+                    break;
+                case 4:
+                    $imagick->flipImage();
+                    break;
+                case 5:
+                    $imagick->flipImage();
+                    $imagick->rotateImage('transparent', -90);
+                    break;
+                case 6:
+                    $imagick->rotateImage('transparent', 90);
+                    break;
+                case 7:
+                    $imagick->flopImage();
+                    $imagick->rotateImage('transparent', -90);
+                    break;
+                case 8:
+                    $imagick->rotateImage('transparent', -90);
+                    break;
+            }
+            
+            // Reset orientation to normal after applying rotation
+            $imagick->setImageProperty('exif:Orientation', '1');
+        } catch (\Exception $e) {
+            // Ignore orientation errors
+        }
+    }
 
     protected function translateUploadErrorCode(?int $code, string $limits): string
     {

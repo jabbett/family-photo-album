@@ -124,6 +124,21 @@ else
     echo -e "${YELLOW}⚠️  No .env file found in backup${NC}"
 fi
 
+# Preserve photos from backup if they exist
+if [ -d "family-photo-album-backup/storage/app/public/photos" ]; then
+    echo -e "${BLUE}📸 Restoring photos from backup...${NC}"
+    mkdir -p family-photo-album/storage/app/public/photos
+    cp -r family-photo-album-backup/storage/app/public/photos/* family-photo-album/storage/app/public/photos/
+    echo -e "${GREEN}✅ Photos restored${NC}"
+else
+    echo -e "${YELLOW}⚠️  No photos found in backup - creating directory structure${NC}"
+    mkdir -p family-photo-album/storage/app/public/photos/originals
+    mkdir -p family-photo-album/storage/app/public/photos/thumbnails
+fi
+
+# Ensure correct permissions on photos directory
+chmod -R 755 family-photo-album/storage/app/public/photos
+
 # Run migrations if we have a .env file
 echo -e "${YELLOW}🗃️  Running migrations...${NC}"
 cd family-photo-album
