@@ -72,23 +72,18 @@ class PhotoUploadController extends Controller
         }
 
         $validated = $request->validate([
-            'photo' => ['required', 'image', 'max:10240'], // up to 10MB (10,240 KB)
+            'photo' => [
+                'required', 
+                'file',
+                'mimes:jpeg,jpg,png,gif,heic,heif', 
+                'max:10240' // up to 10MB (10,240 KB)
+            ],
         ]);
 
         $file = $validated['photo'];
 
-        // Extract taken_at from the uploaded file before sanitizing
-        $takenAt = null;
-        if (function_exists('exif_read_data')) {
-            try {
-                $exif = @exif_read_data($file->getRealPath(), 'EXIF');
-                if ($exif && !empty($exif['DateTimeOriginal'])) {
-                    $takenAt = date('Y-m-d H:i:s', strtotime($exif['DateTimeOriginal']));
-                }
-            } catch (\Throwable $e) {
-                // Ignore EXIF extraction errors
-            }
-        }
+        // Extract taken_at from the uploaded file before processing
+        $takenAt = $this->extractTakenAtDate($file->getRealPath());
 
         // Store the original (preserving all metadata for now)
         [$originalPath, $width, $height] = $this->storeOriginal($file->getRealPath());
@@ -259,12 +254,19 @@ class PhotoUploadController extends Controller
 
 
     /**
-     * Store original image preserving all EXIF data.
+     * Store original image, converting HEIC to JPEG while preserving EXIF data.
      * Returns [relativePath, width, height].
      */
     protected function storeOriginal(string $uploadedTempPath): array
     {
-        // Get image info
+        // Check if this is a HEIC file by trying to read with Imagick
+        $isHeic = $this->isHeicFile($uploadedTempPath);
+        
+        if ($isHeic) {
+            return $this->convertAndStoreHeic($uploadedTempPath);
+        }
+        
+        // Handle regular image formats
         [$width, $height, $type] = getimagesize($uploadedTempPath);
         
         // Determine file extension
@@ -286,6 +288,203 @@ class PhotoUploadController extends Controller
         }
 
         return [$relativePath, $width, $height];
+    }
+
+    /**
+     * Extract taken_at date from image file (supports both JPEG and HEIC)
+     */
+    protected function extractTakenAtDate(string $filePath): ?string
+    {
+        $takenAt = null;
+
+        // Method 1: Try EXIF data (works for JPEG and some HEIC)
+        if (function_exists('exif_read_data')) {
+            try {
+                $exif = @exif_read_data($filePath, 'EXIF');
+                if ($exif && !empty($exif['DateTimeOriginal'])) {
+                    $takenAt = date('Y-m-d H:i:s', strtotime($exif['DateTimeOriginal']));
+                    logger()->info('Date extracted via EXIF', ['date' => $takenAt, 'file' => basename($filePath)]);
+                }
+            } catch (\Throwable $e) {
+                // Ignore EXIF extraction errors
+            }
+        }
+
+        // Method 2: Try Imagick for HEIC files (more comprehensive)
+        if (!$takenAt) {
+            try {
+                $imagick = new \Imagick($filePath);
+                
+                // Try various EXIF date properties that HEIC files might use
+                $dateProperties = [
+                    'exif:DateTimeOriginal',
+                    'exif:DateTime', 
+                    'exif:CreateDate',
+                    'date:create',
+                    'date:modify',
+                ];
+
+                foreach ($dateProperties as $property) {
+                    try {
+                        $dateValue = $imagick->getImageProperty($property);
+                        if ($dateValue && $dateValue !== '') {
+                            // Parse the date - handle various formats
+                            $timestamp = strtotime($dateValue);
+                            if ($timestamp !== false) {
+                                $takenAt = date('Y-m-d H:i:s', $timestamp);
+                                logger()->info('Date extracted via Imagick', [
+                                    'property' => $property,
+                                    'raw_value' => $dateValue,
+                                    'parsed_date' => $takenAt,
+                                    'file' => basename($filePath)
+                                ]);
+                                break;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // Continue to next property
+                    }
+                }
+
+                $imagick->destroy();
+            } catch (\Exception $e) {
+                logger()->warning('Failed to extract date with Imagick', [
+                    'error' => $e->getMessage(),
+                    'file' => basename($filePath)
+                ]);
+            }
+        }
+
+        // Method 3: Fallback to file modification time if no EXIF date found
+        if (!$takenAt) {
+            $fileTime = filemtime($filePath);
+            if ($fileTime !== false) {
+                $takenAt = date('Y-m-d H:i:s', $fileTime);
+                logger()->info('Date extracted from file timestamp (fallback)', [
+                    'date' => $takenAt,
+                    'file' => basename($filePath)
+                ]);
+            }
+        }
+
+        return $takenAt;
+    }
+
+    /**
+     * Check if file is HEIC format
+     */
+    protected function isHeicFile(string $filePath): bool
+    {
+        // First check file extension
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        $isHeicExtension = in_array($extension, ['heic', 'heif']);
+        
+        // Try to read MIME type
+        $mimeType = mime_content_type($filePath);
+        $isHeicMime = in_array($mimeType, ['image/heic', 'image/heif']);
+        
+        // Try Imagick format detection
+        $isHeicFormat = false;
+        try {
+            $imagick = new \Imagick($filePath);
+            $format = strtoupper($imagick->getImageFormat());
+            $imagick->destroy();
+            $isHeicFormat = in_array($format, ['HEIC', 'HEIF']);
+        } catch (\Exception $e) {
+            logger()->warning('Failed to detect format with Imagick', [
+                'error' => $e->getMessage(),
+                'file_path' => $filePath,
+            ]);
+        }
+        
+        $isHeic = $isHeicExtension || $isHeicMime || $isHeicFormat;
+        
+        logger()->info('HEIC file detection', [
+            'file_path' => $filePath,
+            'extension' => $extension,
+            'mime_type' => $mimeType,
+            'extension_match' => $isHeicExtension,
+            'mime_match' => $isHeicMime,
+            'format_match' => $isHeicFormat,
+            'is_heic' => $isHeic,
+        ]);
+        
+        return $isHeic;
+    }
+
+    /**
+     * Convert HEIC to JPEG and store, preserving EXIF data
+     */
+    protected function convertAndStoreHeic(string $uploadedTempPath): array
+    {
+        logger()->info('Converting HEIC file to JPEG', [
+            'file_path' => $uploadedTempPath,
+            'file_size' => filesize($uploadedTempPath),
+        ]);
+
+        try {
+            $imagick = new \Imagick($uploadedTempPath);
+            
+            // Get dimensions before conversion
+            $width = $imagick->getImageWidth();
+            $height = $imagick->getImageHeight();
+            
+            // Validate dimensions
+            if (!$width || !$height) {
+                logger()->error('Invalid image dimensions from HEIC file', [
+                    'width' => $width,
+                    'height' => $height,
+                    'file_path' => $uploadedTempPath,
+                ]);
+                throw new \RuntimeException('Invalid image dimensions detected');
+            }
+            
+            // Convert to JPEG format
+            $imagick->setImageFormat('JPEG');
+            $imagick->setImageCompressionQuality(90);
+
+            // Generate destination path (always .jpg for converted HEIC)
+            $relativePath = 'photos/originals/' . Str::uuid()->toString() . '.jpg';
+            Storage::disk('public')->makeDirectory('photos/originals');
+            $dest = Storage::disk('public')->path($relativePath);
+            
+            // Write converted image
+            $imagick->writeImage($dest);
+            $imagick->destroy();
+
+            // Verify the conversion worked
+            if (!file_exists($dest) || filesize($dest) === 0) {
+                logger()->error('HEIC conversion failed - output file invalid', [
+                    'dest' => $dest,
+                    'exists' => file_exists($dest),
+                    'size' => file_exists($dest) ? filesize($dest) : 'N/A',
+                ]);
+                throw new \RuntimeException('HEIC conversion failed');
+            }
+
+            logger()->info('HEIC conversion completed successfully', [
+                'original_size' => filesize($uploadedTempPath),
+                'converted_size' => filesize($dest),
+                'width' => $width,
+                'height' => $height,
+                'dest_path' => $relativePath,
+            ]);
+
+            return [$relativePath, $width, $height];
+            
+        } catch (\Exception $e) {
+            logger()->error('HEIC conversion error', [
+                'error' => $e->getMessage(),
+                'file_path' => $uploadedTempPath,
+            ]);
+            
+            // Check if this is a "no decode delegate" error (HEIC support not available)
+            if (str_contains($e->getMessage(), 'NoDecodeDelegateForThisImageFormat')) {
+                throw new \RuntimeException('HEIC files are not supported on this server. Please convert to JPEG first or install HEIC support (libheif).');
+            }
+            
+            throw new \RuntimeException('Failed to convert HEIC file: ' . $e->getMessage());
+        }
     }
 
     /**

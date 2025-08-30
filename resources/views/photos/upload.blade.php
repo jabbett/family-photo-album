@@ -13,9 +13,9 @@
             <input
                 id="photo-input"
                 class="mt-2 block w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                type="file" name="photo" accept="image/*" required
+                type="file" name="photo" accept="image/*,.heic,.heif" required
             />
-            <p class="mt-2 text-xs text-gray-500">JPG/PNG/GIF up to 10MB. If uploads fail, increase PHP limits (upload_max_filesize, post_max_size).</p>
+            <p class="mt-2 text-xs text-gray-500">JPG/PNG/GIF/HEIC up to 10MB. HEIC files will be converted to JPEG. If uploads fail, increase PHP limits (upload_max_filesize, post_max_size).</p>
 
             <div id="upload-status" class="mt-6 hidden">
                 <div class="flex items-center justify-center space-x-2">
