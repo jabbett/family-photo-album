@@ -2,17 +2,17 @@
     <x-photo-header />
 
         <!-- Main Content -->
-        <main class="container mx-auto px-4 py-8">
+        <main class="container mx-auto px-0 sm:px-4 py-4 sm:py-8">
             @auth
                 <!-- Authenticated User View -->
                 <div class="mb-8">
                     @if(empty($photos))
                         <div class="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-600">No photos yet. Use the Upload button above to add your first photo.</div>
                     @else
-                        <div id="photo-grid" class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        <div id="photo-grid" class="grid grid-cols-3 gap-px sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                             @foreach($photos as $photo)
-                                <a data-photo-id="{{ $photo->id }}" href="{{ route('photos.show', $photo) }}" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden block">
-                                    <img src="{{ $photo->thumbnail_url ?? $photo->original_url }}" alt="{{ $photo->caption ?? 'Photo' }}" class="w-full aspect-square object-cover" />
+                                <a data-photo-id="{{ $photo->id }}" href="{{ route('photos.show', $photo) }}" class="block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200">
+                                    <img src="{{ $photo->thumbnail_url ?? $photo->original_url }}" alt="{{ $photo->caption ?? 'Photo' }}" loading="lazy" class="w-full aspect-square object-cover" />
                                 </a>
                             @endforeach
                         </div>
@@ -48,10 +48,10 @@
                     @if(empty($photos))
                         <div class="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-600">No photos have been uploaded yet. Please check back soon!</div>
                     @else
-                        <div id="photo-grid" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                        <div id="photo-grid" class="grid grid-cols-3 gap-px sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                             @foreach($photos as $photo)
-                                <a data-photo-id="{{ $photo->id }}" href="{{ route('photos.show', $photo) }}" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden block">
-                                    <img src="{{ $photo->thumbnail_url ?? $photo->original_url }}" alt="{{ $photo->caption ?? 'Photo' }}" class="w-full aspect-square object-cover" />
+                                <a data-photo-id="{{ $photo->id }}" href="{{ route('photos.show', $photo) }}" class="block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200">
+                                    <img src="{{ $photo->thumbnail_url ?? $photo->original_url }}" alt="{{ $photo->caption ?? 'Photo' }}" loading="lazy" class="w-full aspect-square object-cover" />
                                 </a>
                             @endforeach
                         </div>

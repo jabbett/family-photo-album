@@ -268,95 +268,85 @@ du -sh storage/app/public/photos/
 3. **Image Optimization**: Compress uploaded images before storage
 4. **Database Indexing**: Monitor slow queries and add indexes as needed
 
-## Your Deployment Workflow
+## Smart Deployment Workflow
 
-Since your shared server lacks Composer and modern Node.js, we'll build everything locally and upload the complete project.
+Since your shared server lacks Composer and modern Node.js, we build everything locally and use an efficient upload strategy that dramatically reduces bandwidth usage.
 
-### Local Development & Deployment
+### Three Deployment Modes
+
+**Smart Deployment (Default - ~500KB)**
+```bash
+./deploy.sh
+```
+Uploads only changed files, excludes vendor/ dependencies. Use for regular updates.
+
+**Full Deployment (~9MB)**
+```bash
+./deploy.sh --full
+```
+Uploads everything including vendor/. Use for initial deployment or major Laravel version changes.
+
+**Vendor-Only Upload (~6MB)**
+```bash
+./deploy.sh --vendor-only
+```
+Uploads only Composer dependencies. Use after changing composer.json.
+
+### Typical Workflow
 
 ```bash
 # Make your changes locally
 # Test with: composer run dev
 
-# Build complete project for production
-composer install --no-dev --optimize-autoloader
-npm run build
+# Smart deployment (uploads only what changed - much faster!)
+./deploy.sh
 
-# Upload project excluding development files (from within family-photo-album directory)
-rsync -avz --exclude-from=.gitignore --exclude='.git/' ./ yourusername@yoursite.com:~/temp-upload/
-
-# SSH in and replace current version
+# SSH in and run the update
 ssh yourusername@yoursite.com
-rm -rf family-photo-album-backup
-mv family-photo-album family-photo-album-backup  # Backup current version
-mv temp-upload family-photo-album                # Deploy new version
-
-# Copy public files to web root
-cp -r family-photo-album/public/* yourdomain.com/
+~/update-photo-album.sh
 ```
 
-### Why This Approach
+### Why This Smart Approach
 
+- ✅ **Efficient**: 95% bandwidth reduction (500KB vs 9MB)
 - ✅ **Simple**: No server dependencies to manage
 - ✅ **Complete**: Everything built and tested locally first
-- ✅ **Safe**: Keeps backup of previous version
-- ✅ **Fast**: No build time on server
+- ✅ **Safe**: Automatic backups and vendor restoration
+- ✅ **Fast**: No build time on server, minimal upload time
+- ✅ **Intelligent**: Only uploads files that actually changed
 
 ## Updates
 
-### Server Setup: Upload Update Script
+### Server Setup: Upload Scripts
 
-First, upload the server-side update script:
+First, upload the server-side scripts:
 
 ```bash
-# Upload the server update script
-scp server-scripts/update-photo-album.sh yourusername@yoursite.com:~/update-photo-album.sh
+# Upload server scripts and files (included in deploy.sh)
+./deploy.sh --full
+
+# SSH in and make update script executable
 ssh yourusername@yoursite.com chmod +x ~/update-photo-album.sh
 ```
 
-### The Update Script
+### The Enhanced Update Script
 
+The server update script now intelligently handles smart deployments:
+
+- **Database Backup**: Automatic with better error handling for shared hosting
+- **Vendor Management**: Automatically restores vendor/ from backup if missing
+- **Photo Preservation**: Preserves uploaded photos between deployments
+- **Environment Protection**: Preserves .env file between updates
+- **Safety Checks**: Confirms domain directory before copying files
+- **Smart Storage**: Creates correct storage symlink for Dreamhost structure
+
+The script automatically detects whether you used smart deployment (missing vendor/) and handles it appropriately.
+
+### Your Update Workflows
+
+**Regular Updates (Most Common)**
 ```bash
-#!/bin/bash
-set -e
-
-echo "🔄 Starting Family Photo Album update..."
-
-# Backup database
-echo "📦 Backing up database..."
-mkdir -p ~/backups
-mysqldump -h mysql.yoursite.com -u $DB_USER -p$DB_PASS $DB_NAME > ~/backups/db-$(date +%Y%m%d-%H%M%S).sql
-
-# Backup current version
-echo "💾 Backing up current version..."
-rm -rf family-photo-album-backup
-mv family-photo-album family-photo-album-backup
-
-# Move new version into place
-echo "📁 Installing new version..."
-mv temp-upload family-photo-album
-
-# Run migrations
-echo "🗃️  Running migrations..."
-cd family-photo-album
-php artisan migrate --force
-
-# Copy public assets to web root
-echo "📁 Copying public assets..."
-cp -r public/* ~/yourdomain.com/
-
-echo "✅ Update complete!"
-```
-
-Make it executable:
-```bash
-chmod +x ~/update-photo-album.sh
-```
-
-### Your Update Workflow
-
-```bash
-# Local: Build and upload new version (from within family-photo-album directory)
+# Local: Smart deployment - only changed files
 ./deploy.sh
 
 # Server: Deploy new version
@@ -364,7 +354,44 @@ ssh yourusername@yoursite.com
 ~/update-photo-album.sh
 ```
 
-The `deploy.sh` script handles building dependencies, assets, and uploading with the correct exclusions for Dreamhost deployment.
+**After Composer Changes**
+```bash
+# Local: Upload new vendor dependencies first
+./deploy.sh --vendor-only
+
+# Then deploy your code changes
+./deploy.sh
+
+# Server: Deploy new version
+ssh yourusername@yoursite.com
+~/update-photo-album.sh
+```
+
+**First Deployment or Major Updates**
+```bash
+# Local: Full deployment with everything
+./deploy.sh --full
+
+# Server: Deploy new version
+ssh yourusername@yoursite.com
+~/update-photo-album.sh
+```
+
+The enhanced `deploy.sh` script automatically:
+- Builds dependencies and assets locally
+- Uses checksums to detect actual file changes
+- Excludes vendor/ on smart deployments for efficiency
+- Provides clear feedback on upload size and type
+
+### Deployment Size Comparison
+
+| Deployment Type | Size | Use Case | Frequency |
+|----------------|------|----------|-----------|
+| **Smart** | ~500KB | Regular code changes | Most deployments |
+| **Full** | ~9MB | Initial setup, major updates | Rarely |
+| **Vendor-only** | ~6MB | After composer.json changes | Occasionally |
+
+**Example savings**: A typical bug fix that changes 2 files goes from 9MB → 500KB (95% reduction!)
 
 ### Backup Strategy
 

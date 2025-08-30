@@ -115,6 +115,24 @@ fi
 echo -e "${YELLOW}📁 Installing new version...${NC}"
 mv temp-upload family-photo-album
 
+# Check if vendor directory exists, if not, warn user
+if [ ! -d "family-photo-album/vendor" ]; then
+    echo -e "${YELLOW}⚠️  No vendor/ directory found in upload${NC}"
+    echo -e "${BLUE}💡 This was likely a smart deployment. Checking for existing vendor/...${NC}"
+    
+    # If we have vendor in backup, restore it
+    if [ -d "family-photo-album-backup/vendor" ]; then
+        echo -e "${BLUE}📦 Restoring vendor/ from backup...${NC}"
+        cp -r family-photo-album-backup/vendor family-photo-album/vendor
+        echo -e "${GREEN}✅ Vendor dependencies restored from backup${NC}"
+    else
+        echo -e "${RED}❌ No vendor/ directory found in backup either!${NC}"
+        echo -e "${YELLOW}📋 You need to upload vendor dependencies:${NC}"
+        echo -e "   Run locally: ${BLUE}./deploy.sh --vendor-only${NC}"
+        echo -e "${YELLOW}⚠️  Application may not work without vendor dependencies${NC}"
+    fi
+fi
+
 # Preserve .env file from backup if it exists
 if [ -f "family-photo-album-backup/.env" ]; then
     echo -e "${BLUE}📝 Restoring .env file from backup...${NC}"

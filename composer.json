@@ -59,7 +59,7 @@
         ],
         "test": [
             "@php artisan config:clear --ansi",
-            "@php artisan test"
+            "./vendor/bin/pest"
         ]
     },
     "extra": {

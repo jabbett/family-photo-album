@@ -20,7 +20,7 @@ export function initPhotoAlbum(options = {}) {
         for (let i = 0; i < count; i++) {
             const skel = document.createElement('div');
             skel.setAttribute('data-skeleton', '');
-            skel.className = 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden block';
+            skel.className = 'block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200';
             const inner = document.createElement('div');
             inner.className = 'w-full aspect-square bg-gray-100 animate-pulse';
             skel.appendChild(inner);
@@ -39,10 +39,11 @@ export function initPhotoAlbum(options = {}) {
             const a = document.createElement('a');
             a.setAttribute('data-photo-id', item.id);
             a.href = item.url;
-            a.className = 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden block';
+            a.className = 'block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200';
             const img = document.createElement('img');
             img.src = item.thumbnail_url;
             img.alt = item.caption || 'Photo';
+            img.loading = 'lazy';
             img.className = 'w-full aspect-square object-cover';
             a.appendChild(img);
             grid.appendChild(a);

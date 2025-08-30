@@ -13,9 +13,9 @@ class ImageSanitizationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sanitizer_strips_exif_when_source_has_exif(): void
+    public function test_preserves_exif_when_source_has_exif(): void
     {
-        // This test requires real EXIF data to validate sanitization end-to-end.
+        // This test requires real EXIF data to validate EXIF preservation end-to-end.
         // Place a JPEG with real EXIF at tests/Fixtures/exif-sample.jpg
         $fixture = base_path('tests/Fixtures/exif-sample.jpg');
 
@@ -50,7 +50,7 @@ class ImageSanitizationTest extends TestCase
         $sanitizedPath = Storage::disk('public')->path($photo->original_path);
 
         $postExif = @exif_read_data($sanitizedPath, 'EXIF');
-        $this->assertTrue($postExif === false || empty($postExif), 'Sanitized file still has EXIF');
+        $this->assertTrue($postExif !== false && !empty($postExif), 'EXIF data should be preserved');
 
         // Ensure thumbnail exists (square uploads create it immediately; otherwise, invoke crop to generate)
         if (is_null($photo->thumbnail_path)) {
@@ -62,7 +62,7 @@ class ImageSanitizationTest extends TestCase
         $this->assertTrue(Storage::disk('public')->exists($photo->thumbnail_path));
         $thumbPath = Storage::disk('public')->path($photo->thumbnail_path);
         $thumbExif = @exif_read_data($thumbPath, 'EXIF');
-        $this->assertTrue($thumbExif === false || empty($thumbExif), 'Sanitized thumbnail still has EXIF');
+        $this->assertTrue($thumbExif === false || empty($thumbExif), 'Thumbnail should not have EXIF (created via Imagick)');
     }
 }
 

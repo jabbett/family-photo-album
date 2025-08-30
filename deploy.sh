@@ -3,6 +3,16 @@ set -e
 
 # Dreamhost deployment script for Family Photo Album
 # Run from within the family-photo-album directory
+#
+# USAGE:
+#   ./deploy.sh              - Smart deployment (excludes vendor/, ~500KB)
+#   ./deploy.sh --full       - Full deployment (includes vendor/, ~9MB)
+#   ./deploy.sh --vendor-only - Upload only vendor dependencies (~6MB)
+#
+# WORKFLOW:
+#   First deployment:        ./deploy.sh --full
+#   Regular updates:         ./deploy.sh
+#   After composer changes:  ./deploy.sh --vendor-only && ./deploy.sh
 
 # Color output
 RED='\033[0;31m'
@@ -13,7 +23,35 @@ NC='\033[0m' # No Color
 
 CONFIG_FILE=".deploy-config"
 
-echo -e "${YELLOW}🚀 Starting Dreamhost deployment...${NC}"
+# Parse command line arguments
+FULL_DEPLOY=false
+VENDOR_ONLY=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --full)
+            FULL_DEPLOY=true
+            shift
+            ;;
+        --vendor-only)
+            VENDOR_ONLY=true
+            shift
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Usage: $0 [--full] [--vendor-only]"
+            echo "  --full        : Full deployment (includes vendor/)"
+            echo "  --vendor-only : Upload only vendor dependencies"
+            exit 1
+            ;;
+    esac
+done
+
+if [ "$VENDOR_ONLY" = true ]; then
+    echo -e "${YELLOW}📦 Starting vendor-only upload...${NC}"
+else
+    echo -e "${YELLOW}🚀 Starting Dreamhost deployment...${NC}"
+fi
 
 # Check if we're in the right directory
 if [ ! -f "composer.json" ] || [ ! -f "artisan" ]; then
@@ -45,40 +83,90 @@ EOF
     echo -e "${GREEN}✅ Configuration saved to $CONFIG_FILE${NC}"
 fi
 
-# Build dependencies and assets
-echo -e "${YELLOW}📦 Installing Composer dependencies...${NC}"
-composer install --no-dev --optimize-autoloader
+# Skip build steps for vendor-only uploads
+if [ "$VENDOR_ONLY" = false ]; then
+    # Build dependencies and assets
+    echo -e "${YELLOW}📦 Installing Composer dependencies...${NC}"
+    composer install --no-dev --optimize-autoloader
 
-echo -e "${YELLOW}🏗️  Building assets...${NC}"
-npm run build
+    echo -e "${YELLOW}🏗️  Building assets...${NC}"
+    npm run build
+fi
 
 # Deploy to server
-echo -e "${YELLOW}📤 Uploading to $DEPLOY_USERNAME@$DEPLOY_HOST...${NC}"
+if [ "$VENDOR_ONLY" = true ]; then
+    echo -e "${YELLOW}📤 Uploading vendor dependencies to $DEPLOY_USERNAME@$DEPLOY_HOST...${NC}"
+    
+    # Upload only vendor directory
+    rsync -avz \
+        --checksum \
+        --delete \
+        vendor/ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/family-photo-album/vendor/"
+        
+    echo -e "${GREEN}✅ Vendor dependencies updated!${NC}"
+    echo -e "${BLUE}💡 Run a normal deployment to update your application files${NC}"
+    exit 0
+    
+elif [ "$FULL_DEPLOY" = true ]; then
+    echo -e "${YELLOW}📤 Full upload to $DEPLOY_USERNAME@$DEPLOY_HOST...${NC}"
+    
+    # Full deployment with all files including vendor
+    rsync -avz \
+        --exclude='.git/' \
+        --exclude='.env' \
+        --exclude='.deploy-config' \
+        --exclude='node_modules/' \
+        --exclude='database/database.sqlite' \
+        --exclude='storage/app/public/photos/' \
+        --exclude='storage/framework/views/*.php' \
+        --exclude='storage/framework/cache/data/*' \
+        --exclude='storage/framework/sessions/*' \
+        --exclude='storage/logs/*.log' \
+        --exclude='public/storage' \
+        --exclude='tests/' \
+        --exclude='.DS_Store' \
+        ./ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
+else
+    echo -e "${YELLOW}📤 Smart upload to $DEPLOY_USERNAME@$DEPLOY_HOST (excluding vendor/)...${NC}"
+    
+    # Smart deployment - exclude vendor, use checksums for efficiency
+    rsync -avz \
+        --checksum \
+        --exclude='.git/' \
+        --exclude='.env' \
+        --exclude='.deploy-config' \
+        --exclude='node_modules/' \
+        --exclude='vendor/' \
+        --exclude='database/database.sqlite' \
+        --exclude='storage/app/public/photos/' \
+        --exclude='storage/framework/views/*.php' \
+        --exclude='storage/framework/cache/data/*' \
+        --exclude='storage/framework/sessions/*' \
+        --exclude='storage/logs/*.log' \
+        --exclude='public/storage' \
+        --exclude='tests/' \
+        --exclude='.DS_Store' \
+        ./ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
+fi
 
-# Use rsync with specific exclusions (not .gitignore)
-rsync -avz \
-    --exclude='.git/' \
-    --exclude='.env' \
-    --exclude='.deploy-config' \
-    --exclude='node_modules/' \
-    --exclude='database/database.sqlite' \
-    --exclude='storage/app/public/photos/' \
-    --exclude='storage/framework/views/*.php' \
-    --exclude='storage/framework/cache/data/*' \
-    --exclude='storage/framework/sessions/*' \
-    --exclude='storage/logs/*.log' \
-    --exclude='public/storage' \
-    --exclude='tests/' \
-    --exclude='.DS_Store' \
-    ./ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
-
-# Upload server-specific files
-echo -e "${YELLOW}📤 Uploading server-specific files...${NC}"
-rsync -avz server-files/ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/server-files/"
+# Upload server-specific files (skip for vendor-only uploads)
+if [ "$VENDOR_ONLY" = false ]; then
+    echo -e "${YELLOW}📤 Uploading server-specific files...${NC}"
+    rsync -avz server-files/ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/server-files/"
+fi
 
 echo -e "${GREEN}✅ Upload complete!${NC}"
-echo -e "${YELLOW}📋 Next steps:${NC}"
-echo -e "   1. SSH into your server: ${BLUE}ssh $DEPLOY_USERNAME@$DEPLOY_HOST${NC}"
-echo -e "   2. Run the update script: ${BLUE}~/update-photo-album.sh${NC}"
+
+if [ "$FULL_DEPLOY" = true ]; then
+    echo -e "${YELLOW}📋 Next steps (Full Deployment):${NC}"
+    echo -e "   1. SSH into your server: ${BLUE}ssh $DEPLOY_USERNAME@$DEPLOY_HOST${NC}"
+    echo -e "   2. Run the update script: ${BLUE}~/update-photo-album.sh${NC}"
+else
+    echo -e "${YELLOW}📋 Next steps (Smart Deployment):${NC}"
+    echo -e "   1. SSH into your server: ${BLUE}ssh $DEPLOY_USERNAME@$DEPLOY_HOST${NC}"
+    echo -e "   2. Run the update script: ${BLUE}~/update-photo-album.sh${NC}"
+    echo -e "${BLUE}💡 Note: Vendor dependencies were not uploaded (use --vendor-only first if needed)${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}🎉 Deployment ready!${NC}"
