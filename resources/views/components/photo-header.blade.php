@@ -15,20 +15,20 @@
                         $prevDisabled = empty($prevPhoto);
                         $nextDisabled = empty($nextPhoto);
                     @endphp
-                    <a href="{{ $prevDisabled ? '#' : route('photos.show', $prevPhoto) }}" 
-                       class="p-2 rounded-lg {{ $prevDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-100' }}" 
-                       aria-disabled="{{ $prevDisabled ? 'true' : 'false' }}" 
-                       title="Previous">
+                    <a href="{{ $nextDisabled ? '#' : route('photos.show', $nextPhoto) }}"
+                       class="p-2 rounded-lg {{ $nextDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-100' }}"
+                       aria-disabled="{{ $nextDisabled ? 'true' : 'false' }}"
+                       title="Newer">
                         <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
                         </svg>
                     </a>
-                    <a href="{{ $nextDisabled ? '#' : route('photos.show', $nextPhoto) }}" 
-                       class="p-2 rounded-lg {{ $nextDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-100' }}" 
-                       aria-disabled="{{ $nextDisabled ? 'true' : 'false' }}" 
-                       title="Next">
+                    <a href="{{ $prevDisabled ? '#' : route('photos.show', $prevPhoto) }}"
+                       class="p-2 rounded-lg {{ $prevDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-100' }}"
+                       aria-disabled="{{ $prevDisabled ? 'true' : 'false' }}"
+                       title="Older">
                         <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </a>
                 </div>
