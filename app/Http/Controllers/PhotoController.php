@@ -73,13 +73,21 @@ class PhotoController extends Controller
 
         $request->validate([
             'caption' => 'nullable|string|max:500',
+            'taken_date' => 'required|date',
+            'taken_time' => 'required|date_format:H:i',
         ]);
 
-        $photo->update([
+        // Always combine date and time fields into taken_at
+        $takenAt = $request->input('taken_date') . ' ' . $request->input('taken_time') . ':00';
+
+        $updateData = [
             'caption' => $request->input('caption'),
-        ]);
+            'taken_at' => $takenAt,
+        ];
 
-        return redirect()->route('photos.show', $photo)->with('status', 'Caption updated!');
+        $photo->update($updateData);
+
+        return redirect()->route('photos.show', $photo)->with('status', 'Photo updated!');
     }
 
     public function destroy(Photo $photo): RedirectResponse

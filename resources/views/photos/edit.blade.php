@@ -7,18 +7,54 @@
                 @csrf
                 @method('PATCH')
                 
-                <label class="block text-sm font-medium text-gray-700">Caption</label>
-                <textarea 
-                    name="caption" 
-                    rows="3" 
-                    class="mt-2 block w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-blue-500 focus:ring-blue-500 @error('caption') border-red-300 focus:border-red-500 focus:ring-red-500 @enderror" 
-                    placeholder="Say something about this photo..."
-                    maxlength="500"
-                >{{ old('caption', $photo->caption) }}</textarea>
-                
-                @error('caption')
-                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                @enderror
+                <div class="space-y-4">
+                    <!-- Caption Field -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Caption</label>
+                        <textarea 
+                            name="caption" 
+                            rows="3" 
+                            class="mt-2 block w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-blue-500 focus:ring-blue-500 @error('caption') border-red-300 focus:border-red-500 focus:ring-red-500 @enderror" 
+                            placeholder="Say something about this photo..."
+                            maxlength="500"
+                        >{{ old('caption', $photo->caption) }}</textarea>
+                        
+                        @error('caption')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <!-- Date/Time Fields -->
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium text-gray-700">Photo Date & Time</label>
+                        <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <input 
+                                    type="date" 
+                                    name="taken_date" 
+                                    value="{{ old('taken_date', $photo->taken_at ? $photo->taken_at->format('Y-m-d') : now()->format('Y-m-d')) }}"
+                                    required
+                                    class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 @error('taken_date') border-red-300 focus:border-red-500 focus:ring-red-500 @enderror"
+                                >
+                                @error('taken_date')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <div>
+                                <input 
+                                    type="time" 
+                                    name="taken_time" 
+                                    value="{{ old('taken_time', $photo->taken_at ? $photo->taken_at->format('H:i') : '12:00') }}"
+                                    required
+                                    class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 @error('taken_time') border-red-300 focus:border-red-500 focus:ring-red-500 @enderror"
+                                >
+                                @error('taken_time')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="mt-4 flex gap-3">
                     <a href="{{ route('photos.show', $photo) }}" class="flex-1 rounded-lg bg-gray-100 px-4 py-3 text-center text-gray-700 font-medium hover:bg-gray-200 transition-colors">
