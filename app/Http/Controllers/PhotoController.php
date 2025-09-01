@@ -30,10 +30,21 @@ class PhotoController extends Controller
             ->orderByRaw('COALESCE(taken_at, created_at) ASC')
             ->first();
 
+        // Generate dynamic page title
+        $title = 'Photo';
+        if ($photo->caption) {
+            // Truncate caption at 60 characters for title
+            $truncatedCaption = strlen($photo->caption) > 60 
+                ? substr($photo->caption, 0, 60) . '...' 
+                : $photo->caption;
+            $title = $truncatedCaption . ' - Photo';
+        }
+
         return view('photos.show', [
             'photo' => $photo,
             'prevPhoto' => $previous,
             'nextPhoto' => $next,
+            'title' => $title,
         ]);
     }
 
@@ -41,6 +52,34 @@ class PhotoController extends Controller
     {
         $path = Storage::disk('public')->path($photo->original_path);
         return response()->download($path, basename($photo->original_path));
+    }
+
+    public function edit(Photo $photo): View
+    {
+        $user = Auth::user();
+        abort_unless($user && ($user->isAdmin() || $user->id === $photo->user_id), 403);
+
+        $photo->load('user');
+
+        return view('photos.edit', [
+            'photo' => $photo,
+        ]);
+    }
+
+    public function update(Request $request, Photo $photo): RedirectResponse
+    {
+        $user = Auth::user();
+        abort_unless($user && ($user->isAdmin() || $user->id === $photo->user_id), 403);
+
+        $request->validate([
+            'caption' => 'nullable|string|max:500',
+        ]);
+
+        $photo->update([
+            'caption' => $request->input('caption'),
+        ]);
+
+        return redirect()->route('photos.show', $photo)->with('status', 'Caption updated!');
     }
 
     public function destroy(Photo $photo): RedirectResponse

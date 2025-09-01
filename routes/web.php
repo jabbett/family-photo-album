@@ -60,7 +60,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('photos/{photo}/caption', [PhotoUploadController::class, 'showCaptionForm'])->name('photos.caption.show');
     Route::post('photos/{photo}/caption', [PhotoUploadController::class, 'handleCaption'])->name('photos.caption.handle');
 
-    // Delete photo (uploader or admin)
+    // Edit and delete photo (uploader or admin)
+    Route::get('photo/{photo}/edit', [PhotoController::class, 'edit'])->name('photos.edit');
+    Route::patch('photo/{photo}', [PhotoController::class, 'update'])->name('photos.update');
     Route::delete('photo/{photo}', [PhotoController::class, 'destroy'])->name('photos.destroy');
 });
 
