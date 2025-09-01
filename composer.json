@@ -60,6 +60,19 @@
         "test": [
             "@php artisan config:clear --ansi",
             "./vendor/bin/pest"
+        ],
+        "test:coverage": [
+            "@php artisan config:clear --ansi",
+            "mkdir -p reports/coverage",
+            "./vendor/bin/pest --coverage --coverage-html=reports/coverage/html --coverage-clover=reports/coverage/clover.xml"
+        ],
+        "test:coverage-text": [
+            "@php artisan config:clear --ansi", 
+            "./vendor/bin/pest --coverage --coverage-text"
+        ],
+        "coverage-full": [
+            "@test:coverage",
+            "npm run test:coverage"
         ]
     },
     "extra": {

@@ -1,6 +1,6 @@
 /.phpunit.cache
 /node_modules
-# /public/build
+/public/build
 /public/hot
 /public/storage
 /storage/*.key
@@ -36,3 +36,32 @@ yarn-error.log
 
 # Deployment configuration
 .deploy-config
+
+# Coverage reports
+/reports/
+/coverage/
+
+# Build and development artifacts
+/public/mix-manifest.json
+*.tmp
+*.temp
+.cache/
+
+# Editor and OS files
+*~
+.DS_Store?
+Thumbs.db
+
+# Local development
+/bootstrap/ssr/
+.env.*.php
+.env.php
+
+# Testing artifacts
+/.phpunit.cache/
+/storage/framework/testing/
+
+# Temporary files
+*.swp
+*.swo
+*~
