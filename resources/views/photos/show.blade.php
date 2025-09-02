@@ -94,8 +94,17 @@
                     setPhotoLayoutVars();
                     window.addEventListener('resize', setPhotoLayoutVars);
 
+                    // Initialize photo sharing functionality
                     if (window.PhotoAlbum?.initPhotoShare) {
                         window.PhotoAlbum.initPhotoShare();
+                    }
+
+                    // Initialize swipe gestures with navigation URLs
+                    if (window.PhotoAlbum?.initPhotoSwipe) {
+                        window.PhotoAlbum.initPhotoSwipe({
+                            prevPhotoUrl: @json($prevPhoto ? route('photos.show', $prevPhoto) : null),
+                            nextPhotoUrl: @json($nextPhoto ? route('photos.show', $nextPhoto) : null)
+                        });
                     }
                 });
             </script>
