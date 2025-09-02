@@ -1,5 +1,5 @@
 <x-layouts.photo title="Edit Photo">
-    <x-simple-header :back-url="route('photos.show', $photo)" title="Edit Photo">
+    <x-simple-header :back-url="route('photos.show', $photo)" back-text="Back to Photo" title="Edit Photo">
         <div class="mt-6 rounded-lg bg-white border border-gray-200 p-4">
             <img src="{{ $photo->thumbnail_url ?? $photo->original_url }}" alt="Photo" class="w-full rounded aspect-square object-cover" />
 

@@ -22,6 +22,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 CONFIG_FILE=".deploy-config"
+BUILD_DIR=".deploy-build"
 
 # Parse command line arguments
 FULL_DEPLOY=false
@@ -84,38 +85,45 @@ EOF
 fi
 
 # Skip build steps for vendor-only uploads
-if [ "$VENDOR_ONLY" = false ]; then
-    # Build dependencies and assets
-    echo -e "${YELLOW}📦 Installing Composer dependencies...${NC}"
-    composer install --no-dev --optimize-autoloader
-
-    echo -e "${YELLOW}🏗️  Building assets...${NC}"
-    npm run build
-fi
-
-# Deploy to server
+# Prepare build artifacts in an isolated directory to avoid touching local dev deps
 if [ "$VENDOR_ONLY" = true ]; then
+    echo -e "${YELLOW}🧱 Preparing vendor-only build in $BUILD_DIR...${NC}"
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+
+    # Only composer files are needed to generate vendor/
+    cp composer.json composer.lock "$BUILD_DIR/"
+
+    echo -e "${YELLOW}📦 Installing Composer production dependencies...${NC}"
+    composer install --no-dev --optimize-autoloader --working-dir="$BUILD_DIR"
+
     echo -e "${YELLOW}📤 Uploading vendor dependencies to $DEPLOY_USERNAME@$DEPLOY_HOST...${NC}"
-    
-    # Upload only vendor directory
     rsync -avz \
         --checksum \
         --delete \
-        vendor/ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/family-photo-album/vendor/"
-        
+        "$BUILD_DIR/vendor/" "$DEPLOY_USERNAME@$DEPLOY_HOST:~/family-photo-album/vendor/"
+
     echo -e "${GREEN}✅ Vendor dependencies updated!${NC}"
     echo -e "${BLUE}💡 Run a normal deployment to update your application files${NC}"
+
+    # Clean up build dir for vendor-only flow
+    rm -rf "$BUILD_DIR"
     exit 0
-    
-elif [ "$FULL_DEPLOY" = true ]; then
-    echo -e "${YELLOW}📤 Full upload to $DEPLOY_USERNAME@$DEPLOY_HOST...${NC}"
-    
-    # Full deployment with all files including vendor
+else
+    echo -e "${YELLOW}🏗️  Building assets...${NC}"
+    npm run build
+
+    echo -e "${YELLOW}🧱 Preparing isolated build directory at $BUILD_DIR...${NC}"
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+
+    # Copy project into build dir excluding local-only artifacts
     rsync -avz \
         --exclude='.git/' \
         --exclude='.env' \
         --exclude='.deploy-config' \
         --exclude='node_modules/' \
+        --exclude='.deploy-build/' \
         --exclude='database/database.sqlite' \
         --exclude='storage/app/public/photos/' \
         --exclude='storage/framework/views/*.php' \
@@ -125,7 +133,33 @@ elif [ "$FULL_DEPLOY" = true ]; then
         --exclude='public/storage' \
         --exclude='tests/' \
         --exclude='.DS_Store' \
-        ./ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
+        ./ "$BUILD_DIR/"
+
+    echo -e "${YELLOW}📦 Installing Composer production dependencies into build...${NC}"
+    composer install --no-dev --optimize-autoloader --working-dir="$BUILD_DIR"
+fi
+
+# Deploy to server (from isolated build directory)
+if [ "$FULL_DEPLOY" = true ]; then
+    echo -e "${YELLOW}📤 Full upload to $DEPLOY_USERNAME@$DEPLOY_HOST...${NC}"
+    
+    # Full deployment with all files including vendor
+    rsync -avz \
+        --exclude='.git/' \
+        --exclude='.env' \
+        --exclude='.deploy-config' \
+        --exclude='node_modules/' \
+        --exclude='.deploy-build/' \
+        --exclude='database/database.sqlite' \
+        --exclude='storage/app/public/photos/' \
+        --exclude='storage/framework/views/*.php' \
+        --exclude='storage/framework/cache/data/*' \
+        --exclude='storage/framework/sessions/*' \
+        --exclude='storage/logs/*.log' \
+        --exclude='public/storage' \
+        --exclude='tests/' \
+        --exclude='.DS_Store' \
+        "$BUILD_DIR/" "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
 else
     echo -e "${YELLOW}📤 Smart upload to $DEPLOY_USERNAME@$DEPLOY_HOST (excluding vendor/)...${NC}"
     
@@ -136,6 +170,7 @@ else
         --exclude='.env' \
         --exclude='.deploy-config' \
         --exclude='node_modules/' \
+        --exclude='.deploy-build/' \
         --exclude='vendor/' \
         --exclude='database/database.sqlite' \
         --exclude='storage/app/public/photos/' \
@@ -146,7 +181,7 @@ else
         --exclude='public/storage' \
         --exclude='tests/' \
         --exclude='.DS_Store' \
-        ./ "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
+        "$BUILD_DIR/" "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
 fi
 
 # Upload server-specific files (skip for vendor-only uploads)
@@ -156,6 +191,9 @@ if [ "$VENDOR_ONLY" = false ]; then
 fi
 
 echo -e "${GREEN}✅ Upload complete!${NC}"
+
+# Clean up build directory after deployment
+rm -rf "$BUILD_DIR"
 
 if [ "$FULL_DEPLOY" = true ]; then
     echo -e "${YELLOW}📋 Next steps (Full Deployment):${NC}"

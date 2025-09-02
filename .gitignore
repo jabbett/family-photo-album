@@ -36,6 +36,7 @@ yarn-error.log
 
 # Deployment configuration
 .deploy-config
+.deploy-build/
 
 # Coverage reports
 /reports/

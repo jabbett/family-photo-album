@@ -5,10 +5,14 @@
         @if($showNavigation)
             <div class="grid grid-cols-3 items-center">
                 <div class="justify-self-start">
-                    <a href="{{ route('home') }}" class="text-gray-700 hover:text-gray-900">&lsaquo; All photos</a>
+                    <a href="{{ route('home') }}" class="text-gray-700 hover:text-gray-900">
+                        <svg class="w-5 h-5 text-gray-700" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24">
+                            <rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>
+                        </svg>
+                    </a>
                 </div>
                 <div class="justify-self-center text-gray-900 font-semibold truncate">
-                    {{ \App\Models\Setting::getValue('site_title', 'Family Photo Album') }}
+                    <a href="{{ route('home') }}" class="text-gray-900 hover:text-gray-900">{{ \App\Models\Setting::getValue('site_title', 'Family Photo Album') }}</a>
                 </div>
                 <div class="justify-self-end flex items-center gap-2">
                     @php

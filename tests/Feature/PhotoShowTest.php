@@ -31,7 +31,7 @@ it('shows header with link, title and navigation', function () {
 
     $response = $this->get(route('photos.show', $current));
     $response->assertOk();
-    $response->assertSee('&lsaquo; All photos', false);
+    $response->assertSee(route('home'), false);
     $response->assertSee('Family Photo Album', false);
     // Has prev and next links
     $response->assertSee(route('photos.show', $older), false);

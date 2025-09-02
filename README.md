@@ -52,6 +52,26 @@ The project is built with PHP/Laravel so that it's possible to deploy on inexpen
    composer run dev
    ```
 
+### Deployment
+
+Deployments use an isolated build directory so your local dev dependencies remain intact:
+
+```bash
+# Smart deployment (excludes vendor/)
+./deploy.sh
+
+# Full first-time deployment (includes vendor/)
+./deploy.sh --full
+
+# If composer dependencies changed, refresh vendor on server then smart deploy
+./deploy.sh --vendor-only && ./deploy.sh
+```
+
+Notes:
+- The script builds into `.deploy-build/` and installs production dependencies there.
+- Your local `vendor/` is untouched, so `composer test` continues to work after deploys.
+- `.deploy-build/` is ignored by git.
+
 ### Admin Setup
 
 After first deployment, promote a user to admin:
