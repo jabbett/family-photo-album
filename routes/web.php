@@ -55,6 +55,7 @@ Route::middleware(['auth'])->group(function () {
     // Photo upload flow
     Route::get('photos/upload', [PhotoUploadController::class, 'showUploadForm'])->name('photos.upload.show');
     Route::post('photos/upload', [PhotoUploadController::class, 'handleUpload'])->name('photos.upload.handle');
+    Route::post('photos/upload/async', [PhotoUploadController::class, 'handleUploadAsync'])->name('photos.upload.async');
     Route::get('photos/{photo}/crop', [PhotoUploadController::class, 'showCropForm'])->name('photos.crop.show');
     Route::post('photos/{photo}/crop', [PhotoUploadController::class, 'handleCrop'])->name('photos.crop.handle');
     Route::get('photos/{photo}/caption', [PhotoUploadController::class, 'showCaptionForm'])->name('photos.caption.show');

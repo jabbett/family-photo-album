@@ -17,6 +17,24 @@ pest()->extend(Tests\TestCase::class)
 
 /*
 |--------------------------------------------------------------------------
+| Browser Testing
+|--------------------------------------------------------------------------
+|
+| Configure Pest's browser testing capabilities. Browser tests will be
+| automatically detected in the Browser directory and run with Playwright.
+|
+*/
+
+pest()->extend(Tests\TestCase::class)
+    ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
+    ->in('Browser');
+
+// Configure browser defaults
+pest()->browser()
+    ->timeout(10000); // 10 seconds for element interactions
+
+/*
+|--------------------------------------------------------------------------
 | Expectations
 |--------------------------------------------------------------------------
 |

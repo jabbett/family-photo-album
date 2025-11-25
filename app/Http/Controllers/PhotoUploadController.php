@@ -10,12 +10,132 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
 
 class PhotoUploadController extends Controller
 {
     public function showUploadForm(): View
     {
         return view('photos.upload');
+    }
+
+    /**
+     * Handle async photo upload via fetch API
+     * Returns JSON with photo ID for later caption submission
+     */
+    public function handleUploadAsync(Request $request): JsonResponse
+    {
+        logger()->info('Async upload attempt started', [
+            'user_id' => Auth::id(),
+            'has_file' => $request->hasFile('photo'),
+        ]);
+
+        // Reuse existing validation logic
+        if ($request->hasFile('photo')) {
+            $file = $request->file('photo');
+            if (!$file->isValid()) {
+                $limits = sprintf(
+                    'upload_max_filesize=%s, post_max_size=%s',
+                    ini_get('upload_max_filesize') ?: 'unknown',
+                    ini_get('post_max_size') ?: 'unknown'
+                );
+                $errorMessage = $this->translateUploadErrorCode($file->getError(), $limits);
+
+                logger()->warning('Async upload failed - invalid file', [
+                    'error' => $errorMessage,
+                    'user_id' => Auth::id(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 422);
+            }
+        } else if ($request->isMethod('post') && (int) ($request->server('CONTENT_LENGTH') ?? 0) > 0 && empty($_POST)) {
+            // Classic signature of post_max_size overflow
+            $limits = sprintf(
+                'upload_max_filesize=%s, post_max_size=%s',
+                ini_get('upload_max_filesize') ?: 'unknown',
+                ini_get('post_max_size') ?: 'unknown'
+            );
+            $message = "The photo failed to upload because the request exceeded PHP's post_max_size. Current limits: {$limits}.";
+
+            logger()->warning('Async upload failed - post_max_size exceeded', [
+                'limits' => $limits,
+                'content_length' => $request->server('CONTENT_LENGTH'),
+                'user_id' => Auth::id(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $message
+            ], 422);
+        }
+
+        try {
+            $validated = $request->validate([
+                'photo' => [
+                    'required',
+                    'file',
+                    'mimes:jpeg,jpg,png,gif,heic,heif',
+                    'max:10240'
+                ],
+            ]);
+
+            $file = $validated['photo'];
+
+            // Extract taken_at from EXIF
+            $takenAt = $this->extractTakenAtDate($file->getRealPath());
+
+            // Store original
+            [$originalPath, $width, $height] = $this->storeOriginal($file->getRealPath());
+
+            // Create Photo record (incomplete, no thumbnail yet)
+            $photo = Photo::create([
+                'user_id' => Auth::id(),
+                'original_path' => $originalPath,
+                'width' => $width,
+                'height' => $height,
+                'taken_at' => $takenAt,
+                'is_completed' => false, // Explicitly incomplete
+            ]);
+
+            logger()->info('Async upload completed', [
+                'photo_id' => $photo->id,
+                'user_id' => Auth::id(),
+                'width' => $width,
+                'height' => $height,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'photo_id' => $photo->id,
+                'width' => $width,
+                'height' => $height,
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            logger()->warning('Async upload validation failed', [
+                'errors' => $e->errors(),
+                'user_id' => Auth::id(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+
+        } catch (\Exception $e) {
+            logger()->error('Async upload failed', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process photo: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function handleUpload(Request $request): RedirectResponse
@@ -129,7 +249,18 @@ class PhotoUploadController extends Controller
             $this->createSquareThumbnail($photo, $anchor);
         }
 
-        return redirect()->route('photos.caption.show', $photo);
+        // Check if this is the NEW flow (caption → crop) or OLD flow (crop → caption)
+        // NEW flow: Photo has a caption already set → mark complete and go home
+        // OLD flow: Photo has no caption → go to caption page
+        if ($photo->caption !== null) {
+            // NEW FLOW: Caption already saved, mark as completed
+            $photo->is_completed = true;
+            $photo->save();
+            return redirect()->route('home')->with('status', 'Photo uploaded');
+        } else {
+            // OLD FLOW: Still need caption, redirect to caption page
+            return redirect()->route('photos.caption.show', $photo);
+        }
     }
 
     public function showCaptionForm(Photo $photo): View
@@ -146,11 +277,30 @@ class PhotoUploadController extends Controller
             'caption' => ['nullable', 'string', 'max:500'],
         ]);
 
+        // Save caption (photo still incomplete at this point)
         $photo->caption = $validated['caption'] ?? null;
-        $photo->is_completed = true;
         $photo->save();
 
-        return redirect()->route('home')->with('status', 'Photo uploaded');
+        // Check if thumbnail already exists (OLD flow: crop → caption)
+        // If thumbnail exists, just complete the photo
+        if ($photo->thumbnail_path !== null) {
+            $photo->is_completed = true;
+            $photo->save();
+            return redirect()->route('home')->with('status', 'Photo uploaded');
+        }
+
+        // NEW flow: Caption entered before crop
+        // Check if square photo needs auto-crop or user crop
+        if ($photo->width === $photo->height) {
+            // Auto-crop square photos
+            $this->createSquareThumbnail($photo, 'center');
+            $photo->is_completed = true;
+            $photo->save();
+            return redirect()->route('home')->with('status', 'Photo uploaded');
+        }
+
+        // Non-square photos go to crop page (caption saved, but photo not completed yet)
+        return redirect()->route('photos.crop.show', $photo);
     }
 
     protected function authorizeOwner(Photo $photo): void

@@ -23,6 +23,7 @@
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
         "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-browser": "^4.1",
         "pestphp/pest-plugin-laravel": "^4.0"
     },
     "autoload": {
@@ -61,13 +62,21 @@
             "@php artisan config:clear --ansi",
             "./vendor/bin/pest"
         ],
+        "test:browser": [
+            "@php artisan config:clear --ansi",
+            "./vendor/bin/pest tests/Browser"
+        ],
+        "test:all": [
+            "@test",
+            "@test:browser"
+        ],
         "test:coverage": [
             "@php artisan config:clear --ansi",
             "mkdir -p reports/coverage",
             "./vendor/bin/pest --coverage --coverage-html=reports/coverage/html --coverage-clover=reports/coverage/clover.xml"
         ],
         "test:coverage-text": [
-            "@php artisan config:clear --ansi", 
+            "@php artisan config:clear --ansi",
             "./vendor/bin/pest --coverage --coverage-text"
         ],
         "coverage-full": [

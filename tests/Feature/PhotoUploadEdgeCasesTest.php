@@ -196,22 +196,25 @@ class PhotoUploadEdgeCasesTest extends TestCase
             'original_path' => 'photos/originals/test.jpg',
             'width' => 1200,
             'height' => 800,
+            'caption' => 'Test photo', // NEW flow: caption already set
+            'is_completed' => false, // Not completed yet
         ]);
         
         // Test different anchor positions
         $anchors = ['left', 'right', 'center', 'top', 'bottom'];
-        
+
         foreach ($anchors as $anchor) {
             $response = $this->actingAs($user)
                 ->post(route('photos.crop.handle', $photo), [
                     'anchor' => $anchor,
                 ]);
-                
-            $response->assertRedirect(route('photos.caption.show', $photo));
+
+            $response->assertRedirect(route('home'));
         }
-        
+
         $photo->refresh();
         $this->assertNotNull($photo->thumbnail_path);
+        $this->assertTrue($photo->is_completed); // Photo should be completed after crop
     }
 
     public function test_handle_crop_with_boundary_coordinates(): void
@@ -225,8 +228,10 @@ class PhotoUploadEdgeCasesTest extends TestCase
             'original_path' => 'photos/originals/test.jpg',
             'width' => 1000,
             'height' => 800,
+            'caption' => null, // Explicitly no caption for OLD flow
+            'is_completed' => false, // Not completed yet
         ]);
-        
+
         // Test boundary coordinates (should be clamped)
         $response = $this->actingAs($user)
             ->post(route('photos.crop.handle', $photo), [
@@ -234,10 +239,12 @@ class PhotoUploadEdgeCasesTest extends TestCase
                 'crop_y' => 799,  // At edge
                 'crop_size' => 1, // Minimum size
             ]);
-            
+
+        // No caption set, so follows OLD flow (crop → caption)
         $response->assertRedirect(route('photos.caption.show', $photo));
-        
+
         $photo->refresh();
         $this->assertNotNull($photo->thumbnail_path);
+        $this->assertFalse($photo->is_completed); // Not completed until caption saved
     }
 }

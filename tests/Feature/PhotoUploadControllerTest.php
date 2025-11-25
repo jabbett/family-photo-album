@@ -176,19 +176,23 @@ class PhotoUploadControllerTest extends TestCase
             'original_path' => 'photos/originals/test.jpg',
             'width' => 1200,
             'height' => 800,
+            'caption' => null, // Explicitly no caption for OLD flow
+            'is_completed' => false, // Not completed yet
         ]);
-        
+
         $response = $this->actingAs($user)
             ->post(route('photos.crop.handle', $photo), [
                 'crop_x' => 100,
                 'crop_y' => 50,
                 'crop_size' => 600,
             ]);
-            
+
+        // No caption set, follows OLD flow (crop → caption)
         $response->assertRedirect(route('photos.caption.show', $photo));
-        
+
         $photo->refresh();
         $this->assertNotNull($photo->thumbnail_path);
+        $this->assertFalse($photo->is_completed); // Not completed until caption saved
         Storage::disk('public')->assertExists($photo->thumbnail_path);
     }
 
@@ -203,17 +207,21 @@ class PhotoUploadControllerTest extends TestCase
             'original_path' => 'photos/originals/test.jpg',
             'width' => 1200,
             'height' => 800,
+            'caption' => null, // Explicitly no caption for OLD flow
+            'is_completed' => false, // Not completed yet
         ]);
-        
+
         $response = $this->actingAs($user)
             ->post(route('photos.crop.handle', $photo), [
                 'anchor' => 'center',
             ]);
-            
+
+        // No caption set, follows OLD flow (crop → caption)
         $response->assertRedirect(route('photos.caption.show', $photo));
-        
+
         $photo->refresh();
         $this->assertNotNull($photo->thumbnail_path);
+        $this->assertFalse($photo->is_completed); // Not completed until caption saved
         Storage::disk('public')->assertExists($photo->thumbnail_path);
     }
 
@@ -287,41 +295,54 @@ class PhotoUploadControllerTest extends TestCase
     public function test_handle_caption_saves_caption_and_completes_photo(): void
     {
         $user = User::factory()->create();
+        $file = UploadedFile::fake()->image('square.jpg', 800, 800);
+        Storage::disk('public')->put('photos/originals/square.jpg', $file->getContent());
+
         $photo = Photo::factory()->create([
             'user_id' => $user->id,
+            'original_path' => 'photos/originals/square.jpg',
+            'width' => 800,
+            'height' => 800,
             'is_completed' => false,
         ]);
-        
+
         $caption = 'Beautiful sunset';
-        
+
         $response = $this->actingAs($user)
             ->post(route('photos.caption.handle', $photo), [
                 'caption' => $caption,
             ]);
-            
+
         $response->assertRedirect(route('home'));
         $response->assertSessionHas('status', 'Photo uploaded');
-        
+
         $photo->refresh();
         $this->assertEquals($caption, $photo->caption);
         $this->assertTrue($photo->is_completed);
+        $this->assertNotNull($photo->thumbnail_path); // Square photos get auto-cropped
     }
 
     public function test_handle_caption_accepts_empty_caption(): void
     {
         $user = User::factory()->create();
+        $file = UploadedFile::fake()->image('square.jpg', 800, 800);
+        Storage::disk('public')->put('photos/originals/square.jpg', $file->getContent());
+
         $photo = Photo::factory()->create([
             'user_id' => $user->id,
+            'original_path' => 'photos/originals/square.jpg',
+            'width' => 800,
+            'height' => 800,
             'is_completed' => false,
         ]);
-        
+
         $response = $this->actingAs($user)
             ->post(route('photos.caption.handle', $photo), [
                 'caption' => '',
             ]);
-            
+
         $response->assertRedirect(route('home'));
-        
+
         $photo->refresh();
         $this->assertNull($photo->caption);
         $this->assertTrue($photo->is_completed);

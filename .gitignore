@@ -61,6 +61,8 @@ Thumbs.db
 # Testing artifacts
 /.phpunit.cache/
 /storage/framework/testing/
+/tests/Browser/Screenshots/
+.playwright-mcp/
 
 # Temporary files
 *.swp
