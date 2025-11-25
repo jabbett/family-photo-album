@@ -6,6 +6,7 @@ import { initPhotoShare } from './photo-share.js';
 import { initPhotoCrop } from './photo-crop.js';
 import { initPhotoUpload } from './photo-upload.js';
 import { initPhotoSwipe } from './photo-swipe.js';
+import { initCollectionNavigation } from './collection-navigation.js';
 
 // Make functions available globally for inline script initialization
 window.PhotoAlbum = {
@@ -13,5 +14,6 @@ window.PhotoAlbum = {
     initPhotoShare,
     initPhotoCrop,
     initPhotoUpload,
-    initPhotoSwipe
+    initPhotoSwipe,
+    initCollectionNavigation
 };

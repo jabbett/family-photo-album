@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\PhotoController;
-use App\Models\Photo;
+use App\Models\Post;
 
 Route::get('/debug-php', function() {
     return response()->json([
@@ -18,19 +18,24 @@ Route::get('/debug-php', function() {
 
 Route::get('/', function () {
     $perPage = 20;
-    $paginator = Photo::where('is_completed', true)
-        ->orderByRaw('COALESCE(taken_at, created_at) DESC')
+    $paginator = Post::with(['photos' => function($query) {
+            $query->where('position', 0); // Load cover photo only
+        }])
+        ->withCount('photos') // Add photo count for collection indicator
+        ->where('is_completed', true)
+        ->orderByRaw('COALESCE(display_date, created_at) DESC')
         ->paginate($perPage);
 
     return view('photo-album', [
-        'photos' => $paginator->items(),
+        'posts' => $paginator->items(),
         'nextPage' => $paginator->hasMorePages() ? ($paginator->currentPage() + 1) : null,
         'perPage' => $perPage,
     ]);
 })->name('home');
 
 // Public photo routes (guest throttled)
-Route::get('photo/{photo}', [PhotoController::class, 'show'])
+// Note: URLs use /photo/{post} for backward compatibility
+Route::get('photo/{post}', [PhotoController::class, 'show'])
     ->middleware('throttle:photo-show')
     ->name('photos.show');
 Route::get('photo/{photo}/download', [PhotoController::class, 'download'])
@@ -58,13 +63,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('photos/upload/async', [PhotoUploadController::class, 'handleUploadAsync'])->name('photos.upload.async');
     Route::get('photos/{photo}/crop', [PhotoUploadController::class, 'showCropForm'])->name('photos.crop.show');
     Route::post('photos/{photo}/crop', [PhotoUploadController::class, 'handleCrop'])->name('photos.crop.handle');
-    Route::get('photos/{photo}/caption', [PhotoUploadController::class, 'showCaptionForm'])->name('photos.caption.show');
-    Route::post('photos/{photo}/caption', [PhotoUploadController::class, 'handleCaption'])->name('photos.caption.handle');
 
-    // Edit and delete photo (uploader or admin)
-    Route::get('photo/{photo}/edit', [PhotoController::class, 'edit'])->name('photos.edit');
-    Route::patch('photo/{photo}', [PhotoController::class, 'update'])->name('photos.update');
-    Route::delete('photo/{photo}', [PhotoController::class, 'destroy'])->name('photos.destroy');
+    // Post caption routes
+    Route::get('posts/{post}/caption', [PhotoUploadController::class, 'showCaptionForm'])->name('posts.caption.show');
+    Route::post('posts/{post}/caption', [PhotoUploadController::class, 'handleCaption'])->name('posts.caption.handle');
+
+    // Edit and delete post (uploader or admin)
+    Route::get('photo/{post}/edit', [PhotoController::class, 'edit'])->name('photos.edit');
+    Route::patch('photo/{post}', [PhotoController::class, 'update'])->name('photos.update');
+    Route::delete('photo/{post}', [PhotoController::class, 'destroy'])->name('photos.destroy');
 });
 
 // Public JSON feed for infinite scroll (guest throttled)

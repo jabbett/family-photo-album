@@ -13,23 +13,27 @@ class Photo extends Model
 
     protected $fillable = [
         'user_id',
+        'post_id',
+        'position',
         'original_path',
         'thumbnail_path',
         'width',
         'height',
-        'caption',
         'taken_at',
-        'is_completed',
     ];
 
     protected $casts = [
         'taken_at' => 'datetime',
-        'is_completed' => 'boolean',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(Post::class);
     }
 
     public function getOriginalUrlAttribute(): string

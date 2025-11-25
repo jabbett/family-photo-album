@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Photo;
+use App\Models\Post;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -12,38 +13,38 @@ use Illuminate\View\View;
 
 class PhotoController extends Controller
 {
-    public function show(Photo $photo): View
+    public function show(Post $post): View
     {
-        $photo->load('user');
+        $post->load(['photos', 'user']);
 
-        $currentTs = ($photo->taken_at ?? $photo->created_at);
+        $currentTs = ($post->display_date ?? $post->created_at);
 
         // Previous = older than current
-        $previous = Photo::where('is_completed', true)
-            ->whereRaw('COALESCE(taken_at, created_at) < ?', [$currentTs])
-            ->orderByRaw('COALESCE(taken_at, created_at) DESC')
+        $previous = Post::where('is_completed', true)
+            ->whereRaw('COALESCE(display_date, created_at) < ?', [$currentTs])
+            ->orderByRaw('COALESCE(display_date, created_at) DESC')
             ->first();
 
         // Next = newer than current
-        $next = Photo::where('is_completed', true)
-            ->whereRaw('COALESCE(taken_at, created_at) > ?', [$currentTs])
-            ->orderByRaw('COALESCE(taken_at, created_at) ASC')
+        $next = Post::where('is_completed', true)
+            ->whereRaw('COALESCE(display_date, created_at) > ?', [$currentTs])
+            ->orderByRaw('COALESCE(display_date, created_at) ASC')
             ->first();
 
         // Generate dynamic page title
-        $title = 'Photo';
-        if ($photo->caption) {
+        $title = $post->photos->count() === 1 ? 'Photo' : $post->photos->count() . ' Photos';
+        if ($post->caption) {
             // Truncate caption at 60 characters for title
-            $truncatedCaption = strlen($photo->caption) > 60 
-                ? substr($photo->caption, 0, 60) . '...' 
-                : $photo->caption;
-            $title = $truncatedCaption . ' - Photo';
+            $truncatedCaption = strlen($post->caption) > 60
+                ? substr($post->caption, 0, 60) . '...'
+                : $post->caption;
+            $title = $truncatedCaption . ' - ' . $title;
         }
 
         return view('photos.show', [
-            'photo' => $photo,
-            'prevPhoto' => $previous,
-            'nextPhoto' => $next,
+            'post' => $post,
+            'prevPost' => $previous,
+            'nextPost' => $next,
             'title' => $title,
         ]);
     }
@@ -54,58 +55,61 @@ class PhotoController extends Controller
         return response()->download($path, basename($photo->original_path));
     }
 
-    public function edit(Photo $photo): View
+    public function edit(Post $post): View
     {
         $user = Auth::user();
-        abort_unless($user && ($user->isAdmin() || $user->id === $photo->user_id), 403);
+        abort_unless($user && ($user->isAdmin() || $user->id === $post->user_id), 403);
 
-        $photo->load('user');
+        $post->load(['photos', 'user']);
 
         return view('photos.edit', [
-            'photo' => $photo,
+            'post' => $post,
         ]);
     }
 
-    public function update(Request $request, Photo $photo): RedirectResponse
+    public function update(Request $request, Post $post): RedirectResponse
     {
         $user = Auth::user();
-        abort_unless($user && ($user->isAdmin() || $user->id === $photo->user_id), 403);
+        abort_unless($user && ($user->isAdmin() || $user->id === $post->user_id), 403);
 
         $request->validate([
-            'caption' => 'nullable|string|max:500',
+            'caption' => 'nullable|string|max:2000',
             'taken_date' => 'required|date',
             'taken_time' => 'required|date_format:H:i',
         ]);
 
-        // Always combine date and time fields into taken_at
-        $takenAt = $request->input('taken_date') . ' ' . $request->input('taken_time') . ':00';
+        // Always combine date and time fields into display_date
+        $displayDate = $request->input('taken_date') . ' ' . $request->input('taken_time') . ':00';
 
         $updateData = [
             'caption' => $request->input('caption'),
-            'taken_at' => $takenAt,
+            'display_date' => $displayDate,
         ];
 
-        $photo->update($updateData);
+        $post->update($updateData);
 
-        return redirect()->route('photos.show', $photo)->with('status', 'Photo updated!');
+        return redirect()->route('photos.show', $post)->with('status', 'Post updated!');
     }
 
-    public function destroy(Photo $photo): RedirectResponse
+    public function destroy(Post $post): RedirectResponse
     {
         $user = Auth::user();
-        abort_unless($user && ($user->isAdmin() || $user->id === $photo->user_id), 403);
+        abort_unless($user && ($user->isAdmin() || $user->id === $post->user_id), 403);
 
-        // Delete files from storage if present
-        if ($photo->original_path) {
-            Storage::disk('public')->delete($photo->original_path);
+        // Delete all photo files from storage
+        foreach ($post->photos as $photo) {
+            if ($photo->original_path) {
+                Storage::disk('public')->delete($photo->original_path);
+            }
+            if ($photo->thumbnail_path) {
+                Storage::disk('public')->delete($photo->thumbnail_path);
+            }
         }
-        if ($photo->thumbnail_path) {
-            Storage::disk('public')->delete($photo->thumbnail_path);
-        }
 
-        $photo->delete();
+        // Delete post (cascade deletes photos)
+        $post->delete();
 
-        return redirect()->route('home')->with('status', 'Photo deleted');
+        return redirect()->route('home')->with('status', 'Post deleted');
     }
 
     /**
@@ -123,16 +127,22 @@ class PhotoController extends Controller
         $page = (int) ($request->integer('page') ?: 1);
         $page = max(1, min($page, $maxPage));
 
-        $paginator = Photo::where('is_completed', true)
-            ->orderByRaw('COALESCE(taken_at, created_at) DESC')
+        $paginator = Post::with(['photos' => function($query) {
+                $query->where('position', 0); // Load cover photo only
+            }])
+            ->withCount('photos') // Add photo count for collection indicator
+            ->where('is_completed', true)
+            ->orderByRaw('COALESCE(display_date, created_at) DESC')
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $items = $paginator->map(function (Photo $photo) {
+        $items = $paginator->map(function (Post $post) {
+            $coverPhoto = $post->photos->first();
             return [
-                'id' => $photo->id,
-                'url' => route('photos.show', $photo),
-                'thumbnail_url' => $photo->thumbnail_url ?? $photo->original_url,
-                'caption' => $photo->caption,
+                'id' => $post->id,
+                'url' => route('photos.show', $post),
+                'thumbnail_url' => $coverPhoto?->thumbnail_url ?? $coverPhoto?->original_url,
+                'caption' => $post->caption,
+                'is_collection' => $post->photos_count > 1,
             ];
         });
 

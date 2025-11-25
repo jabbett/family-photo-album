@@ -6,13 +6,22 @@
             @auth
                 <!-- Authenticated User View -->
                 <div class="mb-8">
-                    @if(empty($photos))
+                    @if(empty($posts))
                         <div class="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-600">No photos yet. Use the Upload button above to add your first photo.</div>
                     @else
                         <div id="photo-grid" class="grid grid-cols-3 gap-px sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                            @foreach($photos as $photo)
-                                <a data-photo-id="{{ $photo->id }}" href="{{ route('photos.show', $photo) }}" class="block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200">
-                                    <img src="{{ $photo->thumbnail_url ?? $photo->original_url }}" alt="{{ $photo->caption ?? 'Photo' }}" loading="lazy" class="w-full aspect-square object-cover" />
+                            @foreach($posts as $post)
+                                @php
+                                    $coverPhoto = $post->photos->first();
+                                    $isCollection = $post->photos_count > 1;
+                                @endphp
+                                <a data-photo-id="{{ $post->id }}" href="{{ route('photos.show', $post) }}" class="block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200 relative">
+                                    <img src="{{ $coverPhoto?->thumbnail_url ?? $coverPhoto?->original_url }}" alt="{{ $post->caption ?? 'Photo' }}" loading="lazy" class="w-full aspect-square object-cover" />
+                                    @if($isCollection)
+                                        <div class="absolute top-2 right-2">
+                                            <flux:icon.layers class="w-5 h-5 text-white drop-shadow" style="filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.3));" />
+                                        </div>
+                                    @endif
                                 </a>
                             @endforeach
                         </div>
@@ -45,13 +54,22 @@
             @else
                 <!-- Public Visitor View -->
                 <div class="max-w-5xl mx-auto">
-                    @if(empty($photos))
+                    @if(empty($posts))
                         <div class="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-600">No photos have been uploaded yet. Please check back soon!</div>
                     @else
                         <div id="photo-grid" class="grid grid-cols-3 gap-px sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                            @foreach($photos as $photo)
-                                <a data-photo-id="{{ $photo->id }}" href="{{ route('photos.show', $photo) }}" class="block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200">
-                                    <img src="{{ $photo->thumbnail_url ?? $photo->original_url }}" alt="{{ $photo->caption ?? 'Photo' }}" loading="lazy" class="w-full aspect-square object-cover" />
+                            @foreach($posts as $post)
+                                @php
+                                    $coverPhoto = $post->photos->first();
+                                    $isCollection = $post->photos_count > 1;
+                                @endphp
+                                <a data-photo-id="{{ $post->id }}" href="{{ route('photos.show', $post) }}" class="block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200 relative">
+                                    <img src="{{ $coverPhoto?->thumbnail_url ?? $coverPhoto?->original_url }}" alt="{{ $post->caption ?? 'Photo' }}" loading="lazy" class="w-full aspect-square object-cover" />
+                                    @if($isCollection)
+                                        <div class="absolute top-2 right-2">
+                                            <flux:icon.layers class="w-5 h-5 text-white drop-shadow" style="filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.3));" />
+                                        </div>
+                                    @endif
                                 </a>
                             @endforeach
                         </div>

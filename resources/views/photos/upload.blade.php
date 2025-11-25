@@ -1,5 +1,5 @@
-<x-layouts.photo title="Upload Photo">
-    <x-simple-header :back-url="route('home')" title="Upload a Photo">
+<x-layouts.photo title="Upload Photos">
+    <x-simple-header :back-url="route('home')" title="Upload Photos">
         <form id="upload-form" class="mt-6">
             @csrf
 
@@ -14,29 +14,32 @@
 
             {{-- File picker (visible initially) --}}
             <div id="file-picker-container">
-                <label for="photo-input" class="block text-sm font-medium text-gray-700">Choose photo</label>
+                <label for="photo-input" class="block text-sm font-medium text-gray-700">Choose photos (up to 10)</label>
                 <input
                     id="photo-input"
                     class="mt-2 block w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                    type="file" name="photo" accept="image/*,.heic,.heif" required
+                    type="file" name="photos[]" accept="image/*,.heic,.heif" multiple required
                 />
-                <p class="mt-2 text-xs text-gray-500">JPG/PNG/GIF/HEIC up to 10MB. HEIC files will be converted to JPEG.</p>
+                <p class="mt-2 text-xs text-gray-500">JPG/PNG/GIF/HEIC up to 20MB each, max 10 photos. HEIC files will be converted to JPEG.</p>
             </div>
 
-            {{-- Preview + Caption (hidden initially, shown after file selection) --}}
+            {{-- Preview Grid (hidden initially, shown after file selection) --}}
             <div id="preview-container" class="hidden mt-6">
-                <div class="rounded-lg bg-white border border-gray-200 p-4">
-                    <img id="preview-image" src="" alt="Preview" class="w-full rounded aspect-square object-cover" />
+                <div class="mb-4">
+                    <p id="photo-count" class="text-sm font-medium text-gray-700"></p>
+                </div>
+                <div id="preview-grid" class="grid grid-cols-3 gap-2">
+                    {{-- Dynamic photo previews will be inserted here --}}
+                </div>
 
-                    <div class="mt-4">
-                        <label for="caption-textarea" class="block text-sm font-medium text-gray-700">Caption (optional)</label>
-                        <textarea
-                            id="caption-textarea"
-                            name="caption"
-                            rows="3"
-                            class="mt-2 block w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="Say something about this photo...">{{ old('caption') }}</textarea>
-                    </div>
+                <div class="mt-4">
+                    <label for="caption-textarea" class="block text-sm font-medium text-gray-700">Caption (optional)</label>
+                    <textarea
+                        id="caption-textarea"
+                        name="caption"
+                        rows="3"
+                        class="mt-2 block w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="Say something about these photos...">{{ old('caption') }}</textarea>
                 </div>
             </div>
 
@@ -55,6 +58,12 @@
                 class="mt-6 w-full rounded-lg bg-blue-600 px-4 py-3 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 Continue
             </button>
+        </form>
+
+        {{-- Hidden form for caption submission (populated by JS after upload completes) --}}
+        <form id="caption-submit-form" method="POST" action="" class="hidden">
+            @csrf
+            <input type="hidden" name="caption" id="caption-hidden-input" value="">
         </form>
     </x-simple-header>
 
