@@ -39,13 +39,47 @@ export function initPhotoAlbum(options = {}) {
             const a = document.createElement('a');
             a.setAttribute('data-photo-id', item.id);
             a.href = item.url;
-            a.className = 'block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200';
+            a.className = 'block overflow-hidden sm:bg-white sm:rounded-lg sm:shadow-sm sm:border sm:border-gray-200 relative';
+
             const img = document.createElement('img');
             img.src = item.thumbnail_url;
             img.alt = item.caption || 'Photo';
             img.loading = 'lazy';
             img.className = 'w-full aspect-square object-cover';
             a.appendChild(img);
+
+            // Add layers icon for multi-photo posts
+            if (item.is_collection) {
+                const iconContainer = document.createElement('div');
+                iconContainer.className = 'absolute top-2 right-2';
+
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('class', 'w-5 h-5 text-white');
+                svg.setAttribute('style', 'filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.3));');
+                svg.setAttribute('fill', 'none');
+                svg.setAttribute('viewBox', '0 0 24 24');
+                svg.setAttribute('stroke', 'currentColor');
+                svg.setAttribute('stroke-width', '2');
+                svg.setAttribute('stroke-linecap', 'round');
+                svg.setAttribute('stroke-linejoin', 'round');
+
+                // Layers icon path (Lucide icon)
+                const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path1.setAttribute('d', 'M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z');
+
+                const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path2.setAttribute('d', 'm6.08 9.5-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.5-1.59');
+
+                const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path3.setAttribute('d', 'm6.08 14.5-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.5-1.59');
+
+                svg.appendChild(path1);
+                svg.appendChild(path2);
+                svg.appendChild(path3);
+                iconContainer.appendChild(svg);
+                a.appendChild(iconContainer);
+            }
+
             grid.appendChild(a);
         });
     }

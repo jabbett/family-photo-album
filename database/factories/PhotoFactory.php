@@ -23,9 +23,7 @@ class PhotoFactory extends Factory
             'thumbnail_path' => "photos/thumbnails/{$uuid}.jpg",
             'width' => 1200,
             'height' => 900,
-            'caption' => $this->faker->optional()->sentence(),
             'taken_at' => now(),
-            'is_completed' => true,
         ];
     }
 }
