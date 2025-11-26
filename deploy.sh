@@ -120,7 +120,11 @@ else
     # Copy project into build dir excluding local-only artifacts
     rsync -avz \
         --exclude='.git/' \
+        --exclude='.gitignore' \
+        --exclude='.gitattributes' \
         --exclude='.env' \
+        --exclude='.env.example' \
+        --exclude='.env.backup' \
         --exclude='.deploy-config' \
         --exclude='node_modules/' \
         --exclude='.deploy-build/' \
@@ -129,10 +133,40 @@ else
         --exclude='storage/framework/views/*.php' \
         --exclude='storage/framework/cache/data/*' \
         --exclude='storage/framework/sessions/*' \
+        --exclude='storage/framework/testing/' \
         --exclude='storage/logs/*.log' \
+        --exclude='storage/pail/' \
         --exclude='public/storage' \
+        --exclude='public/mix-manifest.json' \
+        --exclude='bootstrap/ssr/' \
         --exclude='tests/' \
+        --exclude='reports/' \
+        --exclude='.phpunit.cache/' \
+        --exclude='.phpunit.result.cache' \
+        --exclude='.playwright-mcp/' \
+        --exclude='.cache/' \
+        --exclude='phpunit.xml' \
+        --exclude='vitest.config.js' \
+        --exclude='.claude/' \
+        --exclude='CLAUDE.md' \
+        --exclude='README.md' \
+        --exclude='DREAMHOST_DEPLOYMENT.md' \
+        --exclude='LARAVEL_QUICKSTART.md' \
+        --exclude='project-brief.md' \
+        --exclude='deploy.sh' \
+        --exclude='.vscode/' \
+        --exclude='.idea/' \
+        --exclude='.nova/' \
+        --exclude='.fleet/' \
+        --exclude='.zed/' \
+        --exclude='.phpactor.json' \
+        --exclude='*.tmp' \
+        --exclude='*.temp' \
+        --exclude='*.swp' \
+        --exclude='*.swo' \
+        --exclude='*~' \
         --exclude='.DS_Store' \
+        --exclude='Thumbs.db' \
         ./ "$BUILD_DIR/"
 
     echo -e "${YELLOW}📦 Installing Composer production dependencies into build...${NC}"
@@ -146,7 +180,11 @@ if [ "$FULL_DEPLOY" = true ]; then
     # Full deployment with all files including vendor
     rsync -avz \
         --exclude='.git/' \
+        --exclude='.gitignore' \
+        --exclude='.gitattributes' \
         --exclude='.env' \
+        --exclude='.env.example' \
+        --exclude='.env.backup' \
         --exclude='.deploy-config' \
         --exclude='node_modules/' \
         --exclude='.deploy-build/' \
@@ -155,10 +193,40 @@ if [ "$FULL_DEPLOY" = true ]; then
         --exclude='storage/framework/views/*.php' \
         --exclude='storage/framework/cache/data/*' \
         --exclude='storage/framework/sessions/*' \
+        --exclude='storage/framework/testing/' \
         --exclude='storage/logs/*.log' \
+        --exclude='storage/pail/' \
         --exclude='public/storage' \
+        --exclude='public/mix-manifest.json' \
+        --exclude='bootstrap/ssr/' \
         --exclude='tests/' \
+        --exclude='reports/' \
+        --exclude='.phpunit.cache/' \
+        --exclude='.phpunit.result.cache' \
+        --exclude='.playwright-mcp/' \
+        --exclude='.cache/' \
+        --exclude='phpunit.xml' \
+        --exclude='vitest.config.js' \
+        --exclude='.claude/' \
+        --exclude='CLAUDE.md' \
+        --exclude='README.md' \
+        --exclude='DREAMHOST_DEPLOYMENT.md' \
+        --exclude='LARAVEL_QUICKSTART.md' \
+        --exclude='project-brief.md' \
+        --exclude='deploy.sh' \
+        --exclude='.vscode/' \
+        --exclude='.idea/' \
+        --exclude='.nova/' \
+        --exclude='.fleet/' \
+        --exclude='.zed/' \
+        --exclude='.phpactor.json' \
+        --exclude='*.tmp' \
+        --exclude='*.temp' \
+        --exclude='*.swp' \
+        --exclude='*.swo' \
+        --exclude='*~' \
         --exclude='.DS_Store' \
+        --exclude='Thumbs.db' \
         "$BUILD_DIR/" "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
 else
     echo -e "${YELLOW}📤 Smart upload to $DEPLOY_USERNAME@$DEPLOY_HOST (excluding vendor/)...${NC}"
@@ -167,7 +235,11 @@ else
     rsync -avz \
         --checksum \
         --exclude='.git/' \
+        --exclude='.gitignore' \
+        --exclude='.gitattributes' \
         --exclude='.env' \
+        --exclude='.env.example' \
+        --exclude='.env.backup' \
         --exclude='.deploy-config' \
         --exclude='node_modules/' \
         --exclude='.deploy-build/' \
@@ -177,10 +249,40 @@ else
         --exclude='storage/framework/views/*.php' \
         --exclude='storage/framework/cache/data/*' \
         --exclude='storage/framework/sessions/*' \
+        --exclude='storage/framework/testing/' \
         --exclude='storage/logs/*.log' \
+        --exclude='storage/pail/' \
         --exclude='public/storage' \
+        --exclude='public/mix-manifest.json' \
+        --exclude='bootstrap/ssr/' \
         --exclude='tests/' \
+        --exclude='reports/' \
+        --exclude='.phpunit.cache/' \
+        --exclude='.phpunit.result.cache' \
+        --exclude='.playwright-mcp/' \
+        --exclude='.cache/' \
+        --exclude='phpunit.xml' \
+        --exclude='vitest.config.js' \
+        --exclude='.claude/' \
+        --exclude='CLAUDE.md' \
+        --exclude='README.md' \
+        --exclude='DREAMHOST_DEPLOYMENT.md' \
+        --exclude='LARAVEL_QUICKSTART.md' \
+        --exclude='project-brief.md' \
+        --exclude='deploy.sh' \
+        --exclude='.vscode/' \
+        --exclude='.idea/' \
+        --exclude='.nova/' \
+        --exclude='.fleet/' \
+        --exclude='.zed/' \
+        --exclude='.phpactor.json' \
+        --exclude='*.tmp' \
+        --exclude='*.temp' \
+        --exclude='*.swp' \
+        --exclude='*.swo' \
+        --exclude='*~' \
         --exclude='.DS_Store' \
+        --exclude='Thumbs.db' \
         "$BUILD_DIR/" "$DEPLOY_USERNAME@$DEPLOY_HOST:~/temp-upload/"
 fi
 
